@@ -5,7 +5,7 @@ const verifyEmail = async (req, res) => {
   const { email, verificationCode } = req.body;
 
   if (!email || !verificationCode) {
-    return res.status(400).send('Email and verification code are required.');
+    return res.status(400).json({ error: 'Email and verification code are required.' });
   }
 
   const client = await pool.connect();
@@ -18,13 +18,13 @@ const verifyEmail = async (req, res) => {
     const verificationResult = await client.query(verificationQuery, [email]);
 
     if (verificationResult.rows.length === 0) {
-      return res.status(404).send('Verification request not found.');
+      return res.status(404).json({ error: 'Verification request not found.' });
     }
 
     const verificationData = verificationResult.rows[0];
 
     if (!verifyCode(verificationCode, verificationData.verification_code)) {
-      return res.status(400).send('Invalid verification code.');
+      return res.status(400).json({ error: 'Invalid verification code.' });
     }
 
     const insertUserQuery = `
@@ -46,9 +46,10 @@ const verifyEmail = async (req, res) => {
     `;
     await client.query(deleteVerificationQuery, [verificationData.id]);
 
-    res.status(200).send('Email verified and user created successfully.');
+    res.status(200).json({ message: 'Email verified and user created successfully.' });
   } catch (error) {
-    res.status(500).send('Error verifying email: ' + error.message);
+    console.error('Error verifying email:', error);
+    res.status(500).json({ error: 'Error verifying email: ' + error.message });
   } finally {
     client.release();
   }

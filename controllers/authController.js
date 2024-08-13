@@ -9,10 +9,10 @@ const signUp = async (req, res) => {
   const { firstName, lastName, username, email, password } = req.body;
 
   if (!firstName || !lastName || !username || !email || !password) {
-    return res.status(400).send('All fields are required.');
+    return res.status(400).json({ error: 'All fields are required.' });
   }
 
-  const client = await pool.connect(); 
+  const client = await pool.connect();
 
   try {
     const checkUserQuery = `
@@ -22,7 +22,7 @@ const signUp = async (req, res) => {
     const checkUserResult = await client.query(checkUserQuery, [email, username]);
 
     if (checkUserResult.rows.length > 0) {
-      return res.status(400).send('Email or username already exists.');
+      return res.status(400).json({ error: 'Email or username already exists.' });
     }
 
     const checkVerificationQuery = `
@@ -70,16 +70,17 @@ const signUp = async (req, res) => {
 
     res.status(200).send('Verification email sent. Please check your inbox.');
   } catch (error) {
-    res.status(500).send('Error creating user: ' + error.message);
+    res.status(500).json({ error: 'Error creating user: ' + error.message });
   } finally {
     client.release(); 
   }
 };
+
 const signIn = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).send('Email and password are required.');
+    return res.status(400).json({ error: 'Email and password are required.' });
   }
 
   try {
@@ -90,7 +91,7 @@ const signIn = async (req, res) => {
 
     if (userResult.rows.length === 0) {
       client.release();
-      return res.status(404).send('User not found.');
+      return res.status(404).json({ error: 'User not found.' });
     }
 
     const userData = userResult.rows[0];
@@ -99,7 +100,7 @@ const signIn = async (req, res) => {
 
     if (!isPasswordValid) {
       client.release();
-      return res.status(401).send('Invalid password.');
+      return res.status(401).json({ error: 'Invalid password.' });
     }
 
     const token = generateToken(userData.id);
@@ -107,7 +108,7 @@ const signIn = async (req, res) => {
     client.release();
     res.status(200).json({ token });
   } catch (error) {
-    res.status(500).send('Error signing in: ' + error.message);
+    res.status(500).json({ error: 'Error signing in: ' + error.message });
   }
 };
 
