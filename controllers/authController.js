@@ -68,13 +68,17 @@ const signUp = async (req, res) => {
 
     await sendVerificationEmail(email, verificationCode);
 
-    res.status(200).send('Verification email sent. Please check your inbox.');
+    res.status(200).json({
+      message: 'Verification email sent. Please check your inbox.',
+      verificationCode: verificationCode
+    });
   } catch (error) {
     res.status(500).json({ error: 'Error creating user: ' + error.message });
   } finally {
     client.release(); 
   }
 };
+
 
 const signIn = async (req, res) => {
   const { email, password } = req.body;
