@@ -1,21 +1,22 @@
 const axios = require('axios');
-
-const apiKey = process.env.API_KEY; 
+const apiKey = process.env.API_KEY;
 const apiUrl = 'https://api.aimlapi.com/chat/completions';
 
-const getAIResponse = async (message, model, maxTokens) => {
+const analyzeImage = async (text, imageUrl, maxTokens) => {
   try {
-    console.log("Message:", message);
-
     const payload = {
-      model: model,
+      model: "gpt-4o",
       messages: [
         {
           role: 'user',
-          content: message,
+          content: [
+            { type: "text", text: text },
+            { type: "image_url", image_url: { url: imageUrl } }
+          ],
         },
       ],
       max_tokens: maxTokens,
+      
     };
 
     const headers = {
@@ -23,25 +24,25 @@ const getAIResponse = async (message, model, maxTokens) => {
       'Content-Type': 'application/json',
     };
 
-    const response = await axios.post(apiUrl, payload, { headers: headers });
+    console.log(maxTokens);
+
+    const response = await axios.post(apiUrl, payload, { headers });
 
     const responseText = response.data.choices[0].message.content;
-
     const promptTokens = response.data.usage.prompt_tokens;
     const completionTokens = response.data.usage.completion_tokens;
     const totalTokens = response.data.usage.total_tokens;
-
     console.log(`Tokens used - Prompt: ${promptTokens}, Completion: ${completionTokens}, Total: ${totalTokens}`);
-    console.log('API Response:', response.data);
+
 
     return {
       responseText: responseText.trim(),
       tokensUsed: totalTokens,
     };
   } catch (error) {
-    console.error('Error fetching AI response:', error.response?.data || error.message);
+    console.error('Error in analyzeImage:', error.response?.data || error.message);
     throw error;
   }
 };
 
-module.exports = { getAIResponse };
+module.exports = { analyzeImage };

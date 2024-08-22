@@ -11,15 +11,18 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^1.7.3",
+    "base-64": "^1.0.0",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.14",
     "nodemon": "^3.1.4",
     "openai": "^4.55.5",
+    "pdf-parse": "^1.1.1",
     "pg": "^8.12.0"
   }
 }

@@ -43,14 +43,8 @@ CREATE TABLE usage_logs (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
 );
 
-CREATE TABLE user_tokens (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    total_tokens INTEGER DEFAULT 0,     
-    tokens_used INTEGER DEFAULT 0,      
-    tokens_remaining INTEGER , 
-    max_tokens INTEGER NOT NULL          
+CREATE TABLE user_music (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    music_ids JSONB NOT NULL
 );
-
-    tokens_used INTEGER DEFAULT 0,      
-    available_tokens INTEGER DEFAULT 0, 
-    max_tokens INTEGER DEFAULT 200  
