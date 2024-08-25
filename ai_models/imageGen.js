@@ -1,13 +1,13 @@
 const axios = require('axios');
 require('dotenv').config();
 
-const generateImage = async (prompt, options = {}) => {
+const generateImage = async (prompt, model, options = {}) => {
   const apiKey = process.env.API_KEY;
   const apiUrl = 'https://api.aimlapi.com/images/generations';
 
   const payload = {
     prompt: prompt,
-    model: 'flux-pro',
+    model: model,
     image_size: options.image_size || 'landscape_16_9',
     num_inference_steps: options.num_inference_steps || 28,
     guidance_scale: options.guidance_scale || 3.5,

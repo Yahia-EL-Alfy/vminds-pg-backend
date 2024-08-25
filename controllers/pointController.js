@@ -3,7 +3,7 @@ const pool = require('../config/database');
 const POINTS_REWARDS = [2, 4, 6, 8, 10, 12]; 
 
 const checkDailyLogin = async (req, res) => {
-  const { userId } = req.body;
+  const userId = req.userId;
 
   if (!userId) {
     return res.status(400).json({ error: 'User ID is required.' });
@@ -34,7 +34,10 @@ const checkDailyLogin = async (req, res) => {
         await client.query('COMMIT');
 
         return res.status(200).json({
-          message: `Points awarded: ${points}. Current streak: ${streakDays}`,
+          message: {
+            "points awarded": points,
+            "current streak": streakDays
+          }
         });
       } else {
         const userPoints = rows[0];
@@ -65,7 +68,10 @@ const checkDailyLogin = async (req, res) => {
           await client.query('COMMIT');
 
           return res.status(200).json({
-            message: `Points awarded: ${points}. Current streak: ${streakDays}`,
+            message: {
+              "points awarded": points,
+              "current streak": streakDays
+            }
           });
         } else {
           return res.status(200).json({
@@ -85,6 +91,7 @@ const checkDailyLogin = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
 
 const getUserPoints = async (req, res) => {
     const { userId } = req.params;

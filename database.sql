@@ -48,3 +48,24 @@ CREATE TABLE user_music (
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     music_ids JSONB NOT NULL
 );
+
+CREATE TABLE modelTokens (
+    id SERIAL PRIMARY KEY,
+    model VARCHAR(255) UNIQUE NOT NULL,
+    tokens INTEGER NOT NULL
+);
+
+INSERT INTO modelTokens (model, tokens) VALUES
+('flux-realism', 73500),
+('stable-diffusion-v3-medium', 73500),
+('flux-pro', 105000),
+('flux/schnell', 6300),
+('flux/dev', 105000);
+
+INSERT INTO modelTokens (model, tokens) VALUES
+('prompthero/openjourney', 50000),
+('runwayml/stable-diffusion-v1-5', 50000),
+('SG161222/Realistic_Vision_V3.0_VAE', 50000),
+('stabilityai/stable-diffusion-2-1', 50000),
+('stabilityai/stable-diffusion-xl-base-1.0', 50000),
+('wavymulder/Analog-Diffusion', 50000);

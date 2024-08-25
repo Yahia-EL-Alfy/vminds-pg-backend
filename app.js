@@ -13,7 +13,7 @@ const app = express();
 app.use(bodyParser.json());
 
 app.use("/api/vminds/auth", authRoutes);
-app.use("/api/vminds/points", pointRoutes);
+app.use("/api/vminds/points", authenticate,pointRoutes);
 app.use("/api/vminds/models", authenticate, chatRoutes); 
 
 const PORT = process.env.PORT || 3000;
