@@ -5,6 +5,8 @@ const path = require("path");
 const authRoutes = require("./routes/authRoutes");
 const pointRoutes = require("./routes/pointRoutes");
 const chatRoutes = require("./routes/modelsRoutes");
+const imagesRoutes = require("./routes/imagesRoutes");
+
 require("./utils/streakResetter");
 
 const authenticate = require("./middlewares/authenticate");
@@ -18,6 +20,8 @@ app.use(bodyParser.json());
 app.use("/api/vminds/auth", authRoutes);
 app.use("/api/vminds/points", authenticate, pointRoutes);
 app.use("/api/vminds/models", authenticate, chatRoutes);
+app.use("/api/vminds/images", imagesRoutes);
+
 
 const PORT = process.env.PORT || 3000;
 
