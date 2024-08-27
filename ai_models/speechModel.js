@@ -1,6 +1,5 @@
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+const wav = require('wav-decoder');
 
 const convertTextToSpeech = async (model, text) => {
     const url = 'https://api.aimlapi.com/tts';
@@ -16,13 +15,16 @@ const convertTextToSpeech = async (model, text) => {
     try {
         const response = await axios.post(url, payload, { headers: headers, responseType: 'arraybuffer' });
 
-        console.log('API Response :', response);
+        const audioData = await wav.decode(response.data);
+        const durationInSeconds = audioData.channelData[0].length / audioData.sampleRate;
 
+        console.log(`Duration of the audio: ${durationInSeconds.toFixed(2)} seconds`);
 
-        const outputFilePath = path.join(__dirname, 'output.wav');
-        fs.writeFileSync(outputFilePath, response.data);
+        const tokensUsed = Math.ceil(durationInSeconds * 1600);
 
-        return outputFilePath; 
+        console.log(`Tokens Used: ${tokensUsed}`);
+
+        return { audioData: response.data, tokensUsed, durationInSeconds };
     } catch (error) {
         if (error.response && error.response.data) {
             const errorMessage = Buffer.from(error.response.data).toString('utf8');
