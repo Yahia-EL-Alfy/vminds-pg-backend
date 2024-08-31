@@ -12,7 +12,7 @@
   "dependencies": {
     "axios": "^1.7.3",
     "base-64": "^1.0.0",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^5.1.0",
     "body-parser": "^1.20.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
