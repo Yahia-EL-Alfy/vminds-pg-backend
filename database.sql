@@ -69,3 +69,23 @@ INSERT INTO modelTokens (model, tokens) VALUES
 ('stabilityai/stable-diffusion-2-1', 50000),
 ('stabilityai/stable-diffusion-xl-base-1.0', 50000),
 ('wavymulder/Analog-Diffusion', 50000);
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE modeltokens TO mashlabm_yahia;
+
+CREATE TABLE image_storage (
+    name VARCHAR(255) PRIMARY KEY,
+    image_name VARCHAR(255) NOT NULL,
+    location VARCHAR(255) NOT NULL,
+    category VARCHAR(255) NOT NULL
+);
+
+INSERT INTO image_storage (name, image_name, location, category) VALUES
+('day1image', 'day1.png', 'images/points/DailyLogins/day1.png', 'daily login'),
+('day2image', 'day2.png', 'images/points/DailyLogins/day2.png', 'daily login'),
+('day3image', 'day3.png', 'images/points/DailyLogins/day3.png', 'daily login'),
+('day4image', 'day4.png', 'images/points/DailyLogins/day4.png', 'daily login'),
+('day5image', 'day5.png', 'images/points/DailyLogins/day5.png', 'daily login'),
+('day6image', 'day6.png', 'images/points/DailyLogins/day6.png', 'daily login');
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE image_storage TO mashlabm_yahia;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE user_music_id_seq TO mashlabm_yahia;

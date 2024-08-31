@@ -97,12 +97,38 @@ const handleMusicGenerationRequest = async (req, res) => {
 };
 
 
+// const getUserMusicDetails = async (req, res) => {
+//     const userId = req.userId;
+
+//     try {
+//         const client = await pool.connect();
+
+//         const userMusicQuery = 'SELECT music_ids FROM user_music WHERE user_id = $1';
+//         const userMusicResult = await client.query(userMusicQuery, [userId]);
+
+//         if (userMusicResult.rows.length === 0) {
+//             client.release();
+//             return res.status(404).json({ error: "No music found for this user." });
+//         }
+
+//         const musicIds = userMusicResult.rows[0].music_ids;
+
+//         const musicDetails = await fetchMusicDetails(musicIds);
+
+//         client.release();
+
+//         return res.status(200).json({ musicDetails });
+//     } catch (error) {
+//         console.error("Error in getUserMusicDetails:", error.message);
+//         return res.status(500).json({ error: "Failed to fetch music details." });
+//     }
+// };
+
 const getUserMusicDetails = async (req, res) => {
     const userId = req.userId;
 
     try {
         const client = await pool.connect();
-
         const userMusicQuery = 'SELECT music_ids FROM user_music WHERE user_id = $1';
         const userMusicResult = await client.query(userMusicQuery, [userId]);
 
@@ -113,7 +139,16 @@ const getUserMusicDetails = async (req, res) => {
 
         const musicIds = userMusicResult.rows[0].music_ids;
 
-        const musicDetails = await fetchMusicDetails(musicIds);
+        // Break down into smaller batches
+        const musicDetailsPromises = [];
+        const batchSize = 5;
+        for (let i = 0; i < musicIds.length; i += batchSize) {
+            const batch = musicIds.slice(i, i + batchSize);
+            musicDetailsPromises.push(fetchMusicDetails(batch));
+        }
+
+        const musicDetailsArray = await Promise.all(musicDetailsPromises);
+        const musicDetails = musicDetailsArray.flat();
 
         client.release();
 
@@ -123,8 +158,6 @@ const getUserMusicDetails = async (req, res) => {
         return res.status(500).json({ error: "Failed to fetch music details." });
     }
 };
-
-
 const handleCustomMusicGenerationRequest = async (req, res) => {
     const { prompt, tags, title, makeInstrumental, waitAudio } = req.body;
     const userId = req.userId;

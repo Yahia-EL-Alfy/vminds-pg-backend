@@ -39,8 +39,27 @@ const generateMusic = async (prompt, makeInstrumental = true, waitAudio = true) 
     }
 };
 
+// const fetchMusicDetails = async (musicIds) => {
+//     const url = `https://api.aimlapi.com/?${musicIds.map((id, index) => `ids[${index}]=${id}`).join('&')}`;
+//     const headers = {
+//         'Authorization': `Bearer ${process.env.API_KEY}`,
+//         'Content-Type': 'application/json'
+//     };
+
+//     try {
+//         const response = await axios.get(url, { headers });
+//         return response.data;
+//     } catch (error) {
+//         console.error("Error fetching music details:", error.message);
+//         throw new Error('Failed to fetch music details.');
+//     }
+// };
+
+
+
 const fetchMusicDetails = async (musicIds) => {
     const url = `https://api.aimlapi.com/?${musicIds.map((id, index) => `ids[${index}]=${id}`).join('&')}`;
+    
     const headers = {
         'Authorization': `Bearer ${process.env.API_KEY}`,
         'Content-Type': 'application/json'
@@ -54,6 +73,7 @@ const fetchMusicDetails = async (musicIds) => {
         throw new Error('Failed to fetch music details.');
     }
 };
+
 
 const generateCustomMusic = async (prompt, tags, title, makeInstrumental = false, waitAudio = true) => {
     const url = 'https://api.aimlapi.com/generate/custom-mode';
