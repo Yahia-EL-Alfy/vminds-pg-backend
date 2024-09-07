@@ -1,5 +1,7 @@
 const pool = require('../../config/database');
 const { convertTextToSpeech } = require('../../ai_models/speechModel');
+const { updateAiToolUsage,updateTokenUsagePoints,updateLoginStreak } = require('../pointController');
+
 
 const handleTextToSpeechRequest = async (req, res) => {
     const { text, model } = req.body;
@@ -41,6 +43,10 @@ const handleTextToSpeechRequest = async (req, res) => {
             VALUES ($1, $2, $3, $4, $5)
         `;
         await client.query(logQuery, [userId, 'tts-model', text, `Generated audio of ${durationInSeconds.toFixed(2)} seconds`, tokensUsed]);
+        await updateAiToolUsage(userId, model);
+        await updateTokenUsagePoints(userId);
+        await updateLoginStreak(userId);
+
 
         client.release();
 

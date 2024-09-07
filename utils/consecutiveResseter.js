@@ -1,7 +1,7 @@
 const pool = require('../config/database');
 const cron = require('node-cron');
 
-const resetWeeklyStreaks = async () => {
+const resetStreaksForInactiveUsers = async () => {
   try {
     const client = await pool.connect();
 
@@ -12,8 +12,8 @@ const resetWeeklyStreaks = async () => {
 
       const { rows } = await client.query(
         `
-        SELECT user_id, streak_start_date FROM user_points
-        WHERE streak_start_date <= $1 - INTERVAL '7 days'
+        SELECT user_id FROM user_points
+        WHERE last_used <= $1 - INTERVAL '48 hours'
       `,
         [currentDate]
       );
@@ -22,19 +22,19 @@ const resetWeeklyStreaks = async () => {
         await client.query(
           `
           UPDATE user_points
-          SET streak_days = 0, streak_start_date = $1
+          SET consecutive_days = 0, last_used = $1
           WHERE user_id = $2
         `,
           [currentDate, user.user_id]
         );
 
-        console.log(`Streak reset for user ID: ${user.user_id}`);
+        console.log(`Consecutive days reset for user ID: ${user.user_id}`);
       }
 
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('Error resetting streaks:', error);
+      console.error('Error resetting consecutive days:', error);
     } finally {
       client.release();
     }
@@ -46,11 +46,10 @@ const resetWeeklyStreaks = async () => {
 cron.schedule(
   '0 0 * * *', 
   () => {
-    console.log('Running streak reset task...');
-    resetWeeklyStreaks();
+    console.log('Running consecutive days reset task...');
+    resetStreaksForInactiveUsers();
   },
   {
     timezone: 'Africa/Cairo',
   }
 );
-

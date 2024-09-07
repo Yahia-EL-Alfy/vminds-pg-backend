@@ -24,7 +24,7 @@ const generateImage = async (prompt,model) => {
 
     if (response.data && response.data.output && response.data.output.choices && response.data.output.choices[0] && response.data.output.choices[0].image_base64) {
       const imageBase64 = response.data.output.choices[0].image_base64;
-      console.log('Generated Image Base64:', imageBase64);
+      //console.log('Generated Image Base64:', imageBase64);
       return imageBase64;
     } else {
       console.error('Image Base64 is undefined or missing in the API response:', response.data.output);

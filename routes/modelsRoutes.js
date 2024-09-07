@@ -13,17 +13,25 @@ const upload = multer();
 
 const router = express.Router();
 
-router.post("/chat", handleChatRequest);
-router.post("/image", handleImageRequest);
-router.post("/simple-image", handleSimpleImage);
+const ensureUserId = (req, res, next) => {
+  if (!req.userId) {
+    return res.status(400).json({ error: 'User ID is required.' });
+  }
+  next();
+};
 
-router.post('/vision', handleImageAnalysisRequest);
-router.post('/analyze-local-image', upload.single('image'), handleLocalImageAnalysisRequest);
 
-router.post('/tts', handleTextToSpeechRequest);
-router.post('/music', handleMusicGenerationRequest);
-router.get('/music/details', getUserMusicDetails);
-router.post('/music/custom_generate', handleCustomMusicGenerationRequest);
-router.post('/luma-ai/generations', handleLumaGenerationRequest);
+router.post("/chat", ensureUserId, handleChatRequest);
+router.post("/image", ensureUserId, handleImageRequest);
+router.post("/simple-image", ensureUserId, handleSimpleImage);
+
+router.post('/vision', ensureUserId, handleImageAnalysisRequest);
+router.post('/analyze-local-image', ensureUserId, upload.single('image'), handleLocalImageAnalysisRequest);
+
+router.post('/tts', ensureUserId, handleTextToSpeechRequest);
+router.post('/music', ensureUserId, handleMusicGenerationRequest);
+router.get('/music/details', ensureUserId, getUserMusicDetails);
+router.post('/music/custom_generate', ensureUserId, handleCustomMusicGenerationRequest);
+router.post('/luma-ai/generations', ensureUserId, handleLumaGenerationRequest);
 
 module.exports = router;

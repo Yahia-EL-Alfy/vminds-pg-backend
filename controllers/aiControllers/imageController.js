@@ -1,5 +1,7 @@
 const { generateImage } = require("../../ai_models/imageGen");
 const pool = require('../../config/database');
+const { updateAiToolUsage,updateTokenUsagePoints,updateImageCountAndPoints,updateLoginStreak} = require('../pointController');
+
 
 const handleImageRequest = async (req, res) => {
   const { prompt, model, imageSize, numInferenceSteps, guidanceScale, numImages, safetyTolerance } = req.body;
@@ -57,6 +59,11 @@ const handleImageRequest = async (req, res) => {
       VALUES ($1, $2, $3, $4, $5)
     `;
     await client.query(logQuery, [userId, 'image_generation', prompt, imageUrl, modelTokens]);
+    await updateAiToolUsage(userId, model);
+    await updateTokenUsagePoints(userId);
+    await updateImageCountAndPoints(userId);
+    await updateLoginStreak(userId);
+
 
     client.release();
 

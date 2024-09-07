@@ -1,5 +1,7 @@
 const { getAIResponse } = require("../../ai_models/chatgpt");
 const pool = require('../../config/database');
+const { updateAiToolUsage,updateTokenUsagePoints,updateLoginStreak } = require('../pointController');
+
 
 const handleChatRequest = async (req, res) => {
     const { message, model } = req.body;
@@ -42,7 +44,10 @@ const handleChatRequest = async (req, res) => {
         VALUES ($1, $2, $3, $4, $5)
       `;
       await client.query(logQuery, [userId, model, message, responseText, tokensUsed]);
-  
+      // await updateAiToolUsage(userId, model);
+      // await updateTokenUsagePoints(userId);
+      // await updateLoginStreak(userId);
+
       client.release();
   
       return res.status(200).json({ response: responseText });

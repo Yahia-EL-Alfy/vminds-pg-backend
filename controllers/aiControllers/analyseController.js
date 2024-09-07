@@ -1,9 +1,12 @@
 const pool = require('../../config/database');
 const { analyzeImage, analyzeLocalImage } = require("../../ai_models/analyseImg");
+const { updateAiToolUsage,updateTokenUsagePoints,updateLoginStreak } = require('../pointController');
+const model = "vision-model" ;
+
 
 const handleImageAnalysisRequest = async (req, res) => {
     const { text, imageUrls } = req.body; 
-    const userId = req.userId; 
+    const userId = req.userId;
 
     if (!text || !Array.isArray(imageUrls) || imageUrls.length === 0) {
         return res.status(400).json({ error: "Text and at least one image URL are required." });
@@ -40,7 +43,12 @@ const handleImageAnalysisRequest = async (req, res) => {
             VALUES ($1, $2, $3, $4, $5)
         `;
         await client.query(logQuery, [userId, 'vision-model', text, responseText, tokensUsed]);
+        await updateAiToolUsage(userId, model);
+        await updateTokenUsagePoints(userId);
+        await updateLoginStreak(userId);
 
+
+      
         client.release();
 
         return res.status(200).json({ response: responseText, tokensUsed });
@@ -90,6 +98,11 @@ const handleLocalImageAnalysisRequest = async (req, res) => {
       VALUES ($1, $2, $3, $4, $5)
     `;
     await client.query(logQuery, [userId, 'vision-model', text, responseText, tokensUsed]);
+    await updateAiToolUsage(userId, model);
+    await updateTokenUsagePoints(userId);
+    await updateLoginStreak(userId);
+
+
 
     client.release();
 
