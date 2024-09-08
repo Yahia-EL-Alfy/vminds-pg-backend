@@ -68,8 +68,8 @@ const handleImageRequest = async (req, res) => {
 
 
     client.release();
-
-    return res.status(200).json({ imageUrl,logId });
+    res.setHeader('Log-ID', logId); 
+    return res.status(200).json({ imageUrl });
   } catch (error) {
     console.error("Error in handleImageRequest:", error);
     return res.status(500).json({ error: "Failed to generate image." });

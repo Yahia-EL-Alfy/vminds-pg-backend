@@ -82,6 +82,7 @@ const handleMusicGenerationRequest = async (req, res) => {
 
 
         client.release();
+        res.setHeader('Log-ID', logId); 
 
         return res.status(200).json({
             music1: {
@@ -100,9 +101,8 @@ const handleMusicGenerationRequest = async (req, res) => {
                 model_name: musicResponse[1].model_name,
                 tags: musicResponse[1].tags,
             },
-            tokensUsed: tokensRequired,
-            log_id: logId
-        });
+            tokensUsed: tokensRequired
+                });
     } catch (error) {
         console.error("Error in handleMusicGenerationRequest:", error);
         return res.status(500).json({ error: "Failed to process music generation request." });
@@ -219,6 +219,8 @@ const handleCustomMusicGenerationRequest = async (req, res) => {
 
 
         client.release();
+        res.setHeader('Log-ID', logId); 
+
 
         return res.status(200).json({
             music1: {
@@ -237,9 +239,7 @@ const handleCustomMusicGenerationRequest = async (req, res) => {
                 model_name: musicResponse[1].model_name,
                 tags: musicResponse[1].tags,
             },
-            tokensUsed: tokensRequired,
-            log_id: logId
-
+            tokensUsed: tokensRequired
         });
     } catch (error) {
         console.error("Error in handleCustomMusicGenerationRequest:", error);
