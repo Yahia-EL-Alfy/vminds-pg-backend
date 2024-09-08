@@ -8,7 +8,7 @@ router.get('/daily-logins-images', getAllDailyLoginImages);
 
 router.get('/getCategoriesWithImages', getCategoriesWithImages);
 
-router.get('/getParentByCategory', getParentByCategory);
+router.get('/getParentByCategory/:category_id', getParentByCategory);
 
 router.get('/getModelsByParentAndCategory', getModelsByParentAndCategory);
 
