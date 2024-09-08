@@ -6,6 +6,7 @@ const authRoutes = require("./routes/authRoutes");
 const pointRoutes = require("./routes/pointRoutes");
 const chatRoutes = require("./routes/modelsRoutes");
 const dataRoutes = require("./routes/dataRoutes");
+const reportRoutes = require("./routes/reportRoutes");
 
 require("./utils/streakResetter");
 require("./utils/consecutiveResseter");
@@ -25,6 +26,8 @@ app.use("/api/vminds/auth", authRoutes);
 app.use("/api/vminds/points", authenticate, pointRoutes);
 app.use("/api/vminds/models", authenticate, chatRoutes);
 app.use("/api/vminds/data", dataRoutes);
+app.use("/api/vminds/support", authenticate, reportRoutes);
+
 
 
 const PORT = process.env.PORT || 3000;

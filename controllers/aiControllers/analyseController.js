@@ -41,8 +41,10 @@ const handleImageAnalysisRequest = async (req, res) => {
         const logQuery = `
             INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
             VALUES ($1, $2, $3, $4, $5)
+            RETURNING id;
         `;
-        await client.query(logQuery, [userId, 'vision-model', text, responseText, tokensUsed]);
+    const logResult = await client.query(logQuery, [userId, 'vision-model', text, responseText, tokensUsed]);
+    const logId = logResult.rows[0].id;
         await updateAiToolUsage(userId, model);
         await updateTokenUsagePoints(userId);
         await updateLoginStreak(userId);
@@ -50,6 +52,7 @@ const handleImageAnalysisRequest = async (req, res) => {
 
       
         client.release();
+        res.setHeader('Log-ID', logId); 
 
         return res.status(200).json({ response: responseText, tokensUsed });
     } catch (error) {
@@ -96,8 +99,10 @@ const handleLocalImageAnalysisRequest = async (req, res) => {
     const logQuery = `
       INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
       VALUES ($1, $2, $3, $4, $5)
-    `;
-    await client.query(logQuery, [userId, 'vision-model', text, responseText, tokensUsed]);
+           RETURNING id;
+        `;
+    const logResult = await client.query(logQuery, [userId, 'vision-model', text, responseText, tokensUsed]);
+    const logId = logResult.rows[0].id;
     await updateAiToolUsage(userId, model);
     await updateTokenUsagePoints(userId);
     await updateLoginStreak(userId);
@@ -105,6 +110,7 @@ const handleLocalImageAnalysisRequest = async (req, res) => {
 
 
     client.release();
+    res.setHeader('Log-ID', logId); 
 
     return res.status(200).json({ response: responseText, tokensUsed });
   } catch (error) {

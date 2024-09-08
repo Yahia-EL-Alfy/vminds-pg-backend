@@ -71,8 +71,10 @@ const handleMusicGenerationRequest = async (req, res) => {
         const logQuery = `
             INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
             VALUES ($1, $2, $3, $4, $5)
+           RETURNING id;
         `;
-        await client.query(logQuery, [userId, 'music-generation', prompt, JSON.stringify(musicResponse), tokensRequired]);
+        const logResult = await client.query(logQuery, [userId, 'music-generation', prompt, JSON.stringify(musicResponse), tokensRequired]);
+        const logId = logResult.rows[0].id;
         await updateAiToolUsage(userId, model);
         await updateTokenUsagePoints(userId);
         await updateLoginStreak(userId);
@@ -93,11 +95,13 @@ const handleMusicGenerationRequest = async (req, res) => {
             music2: {
                 id: musicResponse[1].id,
                 url: musicResponse[1].audio_url,
+                image_url:musicResponse[1].image_url,
                 title: musicResponse[1].title,
                 model_name: musicResponse[1].model_name,
                 tags: musicResponse[1].tags,
             },
-            tokensUsed: tokensRequired
+            tokensUsed: tokensRequired,
+            log_id: logId
         });
     } catch (error) {
         console.error("Error in handleMusicGenerationRequest:", error);
@@ -204,8 +208,10 @@ const handleCustomMusicGenerationRequest = async (req, res) => {
         const logQuery = `
             INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
             VALUES ($1, $2, $3, $4, $5)
+           RETURNING id;
         `;
-        await client.query(logQuery, [userId, 'custom-music-generation', prompt, JSON.stringify(musicResponse), tokensRequired]);
+        const logResult = await client.query(logQuery, [userId, 'custom-music-generation', prompt, JSON.stringify(musicResponse), tokensRequired]);
+        const logId = logResult.rows[0].id;
         await updateAiToolUsage(userId, model);
         await updateTokenUsagePoints(userId);
         await updateLoginStreak(userId);
@@ -218,6 +224,7 @@ const handleCustomMusicGenerationRequest = async (req, res) => {
             music1: {
                 id: musicResponse[0].id,
                 url: musicResponse[0].audio_url,
+                image_url:musicResponse[0].image_url,
                 title: musicResponse[0].title,
                 model_name: musicResponse[0].model_name,
                 tags: musicResponse[0].tags,
@@ -225,11 +232,14 @@ const handleCustomMusicGenerationRequest = async (req, res) => {
             music2: {
                 id: musicResponse[1].id,
                 url: musicResponse[1].audio_url,
+                image_url:musicResponse[1].image_url,
                 title: musicResponse[1].title,
                 model_name: musicResponse[1].model_name,
                 tags: musicResponse[1].tags,
             },
-            tokensUsed: tokensRequired
+            tokensUsed: tokensRequired,
+            log_id: logId
+
         });
     } catch (error) {
         console.error("Error in handleCustomMusicGenerationRequest:", error);

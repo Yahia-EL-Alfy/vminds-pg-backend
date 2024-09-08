@@ -1,7 +1,6 @@
 const pool = require('../../config/database');
 const { convertTextToSpeech } = require('../../ai_models/speechModel');
-const { updateAiToolUsage,updateTokenUsagePoints,updateLoginStreak } = require('../pointController');
-
+const { updateAiToolUsage, updateTokenUsagePoints, updateLoginStreak } = require('../pointController');
 
 const handleTextToSpeechRequest = async (req, res) => {
     const { text, model } = req.body;
@@ -41,18 +40,21 @@ const handleTextToSpeechRequest = async (req, res) => {
         const logQuery = `
             INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
             VALUES ($1, $2, $3, $4, $5)
+           RETURNING id;
         `;
-        await client.query(logQuery, [userId, 'tts-model', text, `Generated audio of ${durationInSeconds.toFixed(2)} seconds`, tokensUsed]);
+        const logResult = await client.query(logQuery, [userId, 'tts-model', text, `Generated audio of ${durationInSeconds.toFixed(2)} seconds`, tokensUsed]);
+        const logId = logResult.rows[0].id;
+
         await updateAiToolUsage(userId, model);
         await updateTokenUsagePoints(userId);
         await updateLoginStreak(userId);
-
 
         client.release();
 
         res.set({
             'Content-Type': 'audio/wav',
             'Content-Disposition': 'attachment; filename="output.wav"',
+            'Log-ID': logId,
         });
 
         return res.status(200).send(audioData);

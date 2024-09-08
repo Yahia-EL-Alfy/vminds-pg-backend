@@ -57,8 +57,10 @@ const handleImageRequest = async (req, res) => {
     const logQuery = `
       INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
       VALUES ($1, $2, $3, $4, $5)
-    `;
-    await client.query(logQuery, [userId, 'image_generation', prompt, imageUrl, modelTokens]);
+            RETURNING id;
+        `;
+    const logResult = await client.query(logQuery, [userId, 'image_generation', prompt, imageUrl, modelTokens]);
+    const logId = logResult.rows[0].id;
     await updateAiToolUsage(userId, model);
     await updateTokenUsagePoints(userId);
     await updateImageCountAndPoints(userId);
@@ -67,7 +69,7 @@ const handleImageRequest = async (req, res) => {
 
     client.release();
 
-    return res.status(200).json({ imageUrl });
+    return res.status(200).json({ imageUrl,logId });
   } catch (error) {
     console.error("Error in handleImageRequest:", error);
     return res.status(500).json({ error: "Failed to generate image." });

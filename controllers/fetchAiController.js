@@ -35,7 +35,7 @@ const getCategoriesWithImages = async (req, res) => {
 
 const getParentByCategory = async (req, res) => {
   try {
-    const { category_id } = req.params;
+    const { category_id } = req.body;
 
     if (!category_id) {
       return res.status(400).json({ error: "Category ID is required" });
