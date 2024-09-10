@@ -44,7 +44,7 @@ const getParentByCategory = async (req, res) => {
     const client = await pool.connect();
 
     const query = `
-      SELECT p.id, p.logo_url, c.name as category, p.parent_name
+      SELECT p.id, p.logo_url, c.name as category, p.parent_name, p.background_color, p.text_color
       FROM ai_parents p
       JOIN categories c ON p.category_id = c.id
       WHERE c.id = $1
@@ -67,7 +67,9 @@ const getParentByCategory = async (req, res) => {
       id: row.id,
       name: row.parent_name,
       logo_url: `${APP_URL}${row.logo_url}`,
-      category: row.category
+      category: row.category,
+      background_color: row.background_color,
+      text_color: row.text_color
     }));
 
     res.status(200).json(parents);
@@ -91,9 +93,10 @@ const getModelsByParentAndCategory = async (req, res) => {
     const client = await pool.connect();
 
     const query = `
-      SELECT m.id, m.model_name, m.model_string, c.name as category, m.context_length
+      SELECT m.id, m.model_name, m.model_string, c.name as category, m.context_length, p.parent_name
       FROM ai_models m
       JOIN categories c ON m.category_id = c.id
+      JOIN ai_parents p ON m.parent_id = p.id
       WHERE m.parent_id = $1 AND c.id = $2 AND m.available = TRUE;
     `;
 
@@ -108,7 +111,8 @@ const getModelsByParentAndCategory = async (req, res) => {
       id: row.id,
       model_name: row.model_name,
       model_string: row.model_string,
-      category: row.category
+      category: row.category,
+      parent_name: row.parent_name
     }));
 
     res.status(200).json(models);
