@@ -7,6 +7,15 @@ const pointRoutes = require("./routes/pointRoutes");
 const chatRoutes = require("./routes/modelsRoutes");
 const dataRoutes = require("./routes/dataRoutes");
 const reportRoutes = require("./routes/reportRoutes");
+const tokensRoutes = require("./routes/tokensRoutes");
+const paymentRoutes = require('./routes/paymentRoutes');
+const packageRoutes = require('./routes/packageRoutes');
+const callbackRoutes = require('./routes/callbackRoutes');
+
+
+
+
+
 
 require("./utils/streakResetter");
 require("./utils/consecutiveResseter");
@@ -27,6 +36,11 @@ app.use("/api/vminds/points", authenticate, pointRoutes);
 app.use("/api/vminds/models", authenticate, chatRoutes);
 app.use("/api/vminds/data", dataRoutes);
 app.use("/api/vminds/support", authenticate, reportRoutes);
+app.use("/api/vminds/tokens", authenticate, tokensRoutes);
+app.use("/api/vminds/packages", packageRoutes);
+app.use('/api/vminds/payment',authenticate, paymentRoutes);
+app.use('/api/vminds/call', callbackRoutes);
+
 
 
 

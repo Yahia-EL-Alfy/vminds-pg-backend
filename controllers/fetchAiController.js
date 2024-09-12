@@ -1,4 +1,3 @@
-// controllers/fetchAiController.js
 const pool = require('../config/database');
 const { APP_URL } = process.env; 
 
