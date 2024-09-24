@@ -66,7 +66,7 @@ const signUp = async (req, res) => {
       ]);
     }
 
-    await sendVerificationEmail(email, verificationCode);
+    await sendVerificationEmail(email, verificationCode,firstName);
 
     res.status(200).json({
       message: 'Verification email sent. Please check your inbox.',

@@ -7,7 +7,6 @@ const generateMusic = async (prompt, makeInstrumental = true, waitAudio = true) 
         'Content-Type': 'application/json'
     };
     const payload = {
-        "model" : "chirp-v3.0",
         'prompt': prompt,
         'make_instrumental': makeInstrumental,
         'wait_audio': waitAudio

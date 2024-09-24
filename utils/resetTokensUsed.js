@@ -25,7 +25,7 @@ const resetTokensUsedForAllUsers = async () => {
 };
 
 cron.schedule(
-  '0 0 1 * *',
+  '36 16 * * *',
   () => {
     console.log('Running monthly token reset task...');
     resetTokensUsedForAllUsers();

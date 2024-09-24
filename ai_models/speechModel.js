@@ -14,7 +14,9 @@ const convertTextToSpeech = async (model, text) => {
 
     try {
         const response = await axios.post(url, payload, { headers: headers, responseType: 'arraybuffer' });
-
+        // console.log('API Response:', response.data);
+        const data = response.data;
+        
         const audioData = await wav.decode(response.data);
         const durationInSeconds = audioData.channelData[0].length / audioData.sampleRate;
 
@@ -24,7 +26,7 @@ const convertTextToSpeech = async (model, text) => {
 
         console.log(`Tokens Used: ${tokensUsed}`);
 
-        return { audioData: response.data, tokensUsed, durationInSeconds };
+        return { audioData: response.data, tokensUsed, durationInSeconds,data };
     } catch (error) {
         if (error.response && error.response.data) {
             const errorMessage = Buffer.from(error.response.data).toString('utf8');

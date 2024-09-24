@@ -1,23 +1,32 @@
+const fs = require('fs');
+const path = require('path');
 const nodemailer = require('nodemailer');
 
+// Create transporter object
 const transporter = nodemailer.createTransport({
-  service: 'gmail', 
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, 
-
+  host: 'mi3-ts7.a2hosting.com',
+  port: 465,
+  secure: true,
   auth: {
-    user: 'veemswsolution@gmail.com',
-    pass: 'nuvw uhhg qtet bkvc',
+    user: 'support@vminds.ai',
+    pass: 'a+V}S0d3ILd}^8v]#M',
   },
 });
 
-const sendVerificationEmail = async (to, verificationCode) => {
+const sendVerificationEmail = async (to, verificationCode, firstName) => {
+  const templatePath = path.join(__dirname, '../email_verfication.html');
+  
+  let emailHtml = fs.readFileSync(templatePath, 'utf8');
+
+  emailHtml = emailHtml.replace('1 2 3 4 5', verificationCode);
+  emailHtml = emailHtml.replace('Ahmed', firstName);
+
+
   const mailOptions = {
-    from: 'veemswsolution@gmail.com',
+    from: 'support@vminds.ai',
     to,
     subject: 'Email Verification',
-    html: `<p>Please use the following code to verify your email: <strong>${verificationCode}</strong></p>`,
+    html: emailHtml,  
   };
 
   try {

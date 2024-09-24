@@ -61,15 +61,25 @@ const handleImageRequest = async (req, res) => {
         `;
     const logResult = await client.query(logQuery, [userId, 'image_generation', prompt, imageUrl, modelTokens]);
     const logId = logResult.rows[0].id;
-    await updateAiToolUsage(userId, model);
-    await updateTokenUsagePoints(userId);
-    await updateImageCountAndPoints(userId);
-    await updateLoginStreak(userId);
 
+        const imagecountres = await updateImageCountAndPoints(userId);
+
+        // Update AI tool usage and get the reward response
+        const usageUpdateResult = await updateAiToolUsage(userId, model);
+
+        // Update token usage points
+        const tokenUsageRes = await updateTokenUsagePoints(userId);
+         await updateLoginStreak(userId);
 
     client.release();
     res.setHeader('Log-ID', logId); 
-    return res.status(200).json({ imageUrl });
+    return res.status(200).json({ 
+      imageUrl,
+      usageUpdate: usageUpdateResult,
+      tokenUsage: tokenUsageRes,
+      imagePoints: imagecountres
+
+     });
   } catch (error) {
     console.error("Error in handleImageRequest:", error);
     return res.status(500).json({ error: "Failed to generate image." });

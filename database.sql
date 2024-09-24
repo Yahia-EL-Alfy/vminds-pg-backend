@@ -5,7 +5,10 @@ CREATE TABLE users (
     first_name VARCHAR(255) NOT NULL,
     last_name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL, 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    tokens_used INTEGER,
+    available_tokens INTEGER,
+    max_tokens INTEGER
 );
 
 
@@ -33,13 +36,10 @@ CREATE TABLE user_points (
     ai_tools_used INTEGER DEFAULT 0, 
     used_ai_tools TEXT[] DEFAULT '{}', 
     consecutive_days INTEGER DEFAULT 1, 
-    last_used TIMESTAMP DEFAULT NOW()
-
+    last_used TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    number_of_pdf_or_pptx INTEGER DEFAULT 0,
+    number_of_images INTEGER DEFAULT 0
 );
-ALTER TABLE user_points ADD COLUMN number_of_pdf_or_pptx INTEGER DEFAULT 0;
-ALTER TABLE user_points
-ADD COLUMN number_of_images INTEGER DEFAULT 0;
-
 
 
 CREATE TABLE usage_logs (
@@ -64,21 +64,7 @@ CREATE TABLE modelTokens (
     tokens INTEGER NOT NULL
 );
 
-INSERT INTO modelTokens (model, tokens) VALUES
-('flux-realism', 73500),
-('stable-diffusion-v3-medium', 73500),
-('flux-pro', 105000),
-('flux/schnell', 6300),
-('flux/dev', 105000);
 
-INSERT INTO modelTokens (model, tokens) VALUES
-('prompthero/openjourney', 50000),
-('runwayml/stable-diffusion-v1-5', 50000),
-('SG161222/Realistic_Vision_V3.0_VAE', 50000),
-('stabilityai/stable-diffusion-2-1', 50000),
-('stabilityai/stable-diffusion-xl-base-1.0', 50000),
-('wavymulder/Analog-Diffusion', 50000);
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE modeltokens TO mashlabm_yahia;
 
 CREATE TABLE image_storage (
     name VARCHAR(255) PRIMARY KEY,
@@ -87,17 +73,10 @@ CREATE TABLE image_storage (
     category VARCHAR(255) NOT NULL
 );
 
-INSERT INTO image_storage (name, image_name, location, category) VALUES
-('day1image', 'day1.png', 'images/points/DailyLogins/day1.png', 'daily login'),
-('day2image', 'day2.png', 'images/points/DailyLogins/day2.png', 'daily login'),
-('day3image', 'day3.png', 'images/points/DailyLogins/day3.png', 'daily login'),
-('day4image', 'day4.png', 'images/points/DailyLogins/day4.png', 'daily login'),
-('day5image', 'day5.png', 'images/points/DailyLogins/day5.png', 'daily login'),
-('day6image', 'day6.png', 'images/points/DailyLogins/day6.png', 'daily login');
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE image_storage TO mashlabm_yahia;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE user_music_id_seq TO mashlabm_yahia;
+
+
 
 CREATE TABLE rewards (
     id SERIAL PRIMARY KEY,
@@ -162,18 +141,73 @@ CREATE TABLE ai_parents (
     id SERIAL PRIMARY KEY,
     parent_name VARCHAR(255) NOT NULL,
     logo_url TEXT,
-    category VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-    
+    category_id integer NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    background_color VARCHAR(7),
+    text_color VARCHAR(7)
 );
 
 CREATE TABLE ai_models (
     id SERIAL PRIMARY KEY,
     model_name VARCHAR(255) NOT NULL,
     model_string VARCHAR(255) NOT NULL,
-    category VARCHAR(100) NOT NULL,
+    category_id integer NOT NULL,
     context_length INT,  
     parent_id INT REFERENCES ai_parents(id),
     available BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE report (
+    id SERIAL PRIMARY KEY,
+    log_id INT REFERENCES usage_logs(id),
+    user_id INT REFERENCES users(id),
+    model VARCHAR(255),
+    comment TEXT
+);
+
+CREATE TABLE packages (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    tokens INTEGER NOT NULL
+);
+CREATE TABLE promocodes (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    discount DECIMAL(5, 2),    -- Discount in percentage or fixed value
+    extra_tokens INTEGER,      -- Additional tokens if promo applies
+    expiry_date TIMESTAMP      -- Expiry date for the promo code
+);
+ CREATE TABLE user_packages (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    package_id INT REFERENCES packages(id) ON DELETE CASCADE,
+    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    end_date TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + interval '1 month')
+ );
+ CREATE TABLE cart (
+    id SERIAL PRIMARY KEY,
+    price DECIMAL(10, 2) NOT NULL,
+    tokens INTEGER NOT NULL,
+    package_id INT REFERENCES packages(id) ON DELETE CASCADE,
+    promo_code_id INT REFERENCES promocodes(id) ON DELETE SET NULL
+);
+CREATE TABLE transaction_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    tran_ref VARCHAR(255) NOT NULL,
+    response_code VARCHAR(50),
+    response_status VARCHAR(2) NOT NULL, 
+    response_message TEXT,
+    transaction_time TIMESTAMP NOT NULL,
+    payment_info JSONB,
+    cart_id INT REFERENCES cart(id) ON DELETE CASCADE,
+    amount DECIMAL(10, 2) NOT NULL
+);
+CREATE TABLE tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );

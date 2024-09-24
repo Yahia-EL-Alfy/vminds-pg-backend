@@ -9,13 +9,14 @@ const resetStreaksForInactiveUsers = async () => {
       await client.query('BEGIN');
 
       const currentDate = new Date();
+      const pastDate = new Date(currentDate.getTime() - 48 * 60 * 60 * 1000); 
 
       const { rows } = await client.query(
         `
         SELECT user_id FROM user_points
-        WHERE last_used <= $1 - INTERVAL '48 hours'
+        WHERE last_used <= $1
       `,
-        [currentDate]
+        [pastDate]
       );
 
       for (const user of rows) {
@@ -44,7 +45,7 @@ const resetStreaksForInactiveUsers = async () => {
 };
 
 cron.schedule(
-  '0 0 * * *', 
+  '32 16 * * *', // Run at 4 PM every day
   () => {
     console.log('Running consecutive days reset task...');
     resetStreaksForInactiveUsers();

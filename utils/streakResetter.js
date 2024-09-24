@@ -8,24 +8,21 @@ const resetWeeklyStreaks = async () => {
     try {
       await client.query('BEGIN');
 
-      const currentDate = new Date();
-
       const { rows } = await client.query(
         `
         SELECT user_id, streak_start_date FROM user_points
-        WHERE streak_start_date <= $1 - INTERVAL '7 days'
-      `,
-        [currentDate]
+        WHERE streak_start_date <= NOW() - INTERVAL '7 days'
+      `
       );
 
       for (const user of rows) {
         await client.query(
           `
           UPDATE user_points
-          SET streak_days = 0, streak_start_date = $1
-          WHERE user_id = $2
+          SET streak_days = 0, streak_start_date = NOW()
+          WHERE user_id = $1
         `,
-          [currentDate, user.user_id]
+          [user.user_id]
         );
 
         console.log(`Streak reset for user ID: ${user.user_id}`);
@@ -44,7 +41,7 @@ const resetWeeklyStreaks = async () => {
 };
 
 cron.schedule(
-  '0 0 * * *', 
+  '40 16 * * *', 
   () => {
     console.log('Running streak reset task...');
     resetWeeklyStreaks();
@@ -53,4 +50,3 @@ cron.schedule(
     timezone: 'Africa/Cairo',
   }
 );
-

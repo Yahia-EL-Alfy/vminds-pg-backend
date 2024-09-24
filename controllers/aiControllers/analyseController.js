@@ -45,8 +45,10 @@ const handleImageAnalysisRequest = async (req, res) => {
         `;
     const logResult = await client.query(logQuery, [userId, 'vision-model', text, responseText, tokensUsed]);
     const logId = logResult.rows[0].id;
-        await updateAiToolUsage(userId, model);
-        await updateTokenUsagePoints(userId);
+    const usageUpdateResult = await updateAiToolUsage(userId, model);
+
+    // Update token usage points
+    const tokenUsageRes = await updateTokenUsagePoints(userId);
         await updateLoginStreak(userId);
 
 
@@ -54,7 +56,10 @@ const handleImageAnalysisRequest = async (req, res) => {
         client.release();
         res.setHeader('Log-ID', logId); 
 
-        return res.status(200).json({ response: responseText, tokensUsed });
+        return res.status(200).json({ response: responseText, tokensUsed,
+          usageUpdate: usageUpdateResult,
+          tokenUsage: tokenUsageRes
+         });
     } catch (error) {
         console.error("Error in handleImageAnalysisRequest:", error);
         return res.status(500).json({ error: "Failed to analyze image." });
@@ -103,8 +108,10 @@ const handleLocalImageAnalysisRequest = async (req, res) => {
         `;
     const logResult = await client.query(logQuery, [userId, 'vision-model', text, responseText, tokensUsed]);
     const logId = logResult.rows[0].id;
-    await updateAiToolUsage(userId, model);
-    await updateTokenUsagePoints(userId);
+    const usageUpdateResult = await updateAiToolUsage(userId, model);
+
+    // Update token usage points
+    const tokenUsageRes = await updateTokenUsagePoints(userId);
     await updateLoginStreak(userId);
 
 
@@ -112,7 +119,10 @@ const handleLocalImageAnalysisRequest = async (req, res) => {
     client.release();
     res.setHeader('Log-ID', logId); 
 
-    return res.status(200).json({ response: responseText, tokensUsed });
+    return res.status(200).json({ response: responseText, tokensUsed,
+      usageUpdate: usageUpdateResult,
+      tokenUsage: tokenUsageRes
+     });
   } catch (error) {
     console.error("Error in handleLocalImageAnalysisRequest:", error);
     return res.status(500).json({ error: "Failed to analyze image." });

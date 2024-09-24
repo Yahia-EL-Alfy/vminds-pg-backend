@@ -23,7 +23,7 @@ const handleTextToSpeechRequest = async (req, res) => {
 
         const user = userResult.rows[0];
 
-        const { audioData, tokensUsed, durationInSeconds } = await convertTextToSpeech(model, text);
+        const { data, tokensUsed, durationInSeconds } = await convertTextToSpeech(model, text);
 
         if (user.available_tokens < tokensUsed) {
             client.release();
@@ -45,19 +45,21 @@ const handleTextToSpeechRequest = async (req, res) => {
         const logResult = await client.query(logQuery, [userId, 'tts-model', text, `Generated audio of ${durationInSeconds.toFixed(2)} seconds`, tokensUsed]);
         const logId = logResult.rows[0].id;
 
-        await updateAiToolUsage(userId, model);
-        await updateTokenUsagePoints(userId);
+        const usageUpdateResult = await updateAiToolUsage(userId, model);
+        const tokenUsageRes = await updateTokenUsagePoints(userId);
         await updateLoginStreak(userId);
 
         client.release();
 
         res.set({
-            'Content-Type': 'audio/wav',
-            'Content-Disposition': 'attachment; filename="output.wav"',
             'Log-ID': logId,
         });
 
-        return res.status(200).send(audioData);
+        return res.status(200).json({
+            audio:data,
+            usageUpdate: usageUpdateResult,
+            tokenUsage: tokenUsageRes
+        });
     } catch (error) {
         console.error("Error in handleTextToSpeechRequest:", error);
         return res.status(500).json({ error: "Failed to process text to speech request." });

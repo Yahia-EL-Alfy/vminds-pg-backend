@@ -1,14 +1,12 @@
-// controllers/imagesController.js
 const pool = require('../config/database');
 const { APP_URL } = process.env;
 
-const getAllDailyLoginImages = async (req, res) => {
+const getAllbadges = async (req, res) => {
   try {
     const client = await pool.connect();
     const query = `
       SELECT image_name, location 
-      FROM image_storage 
-      WHERE category = 'daily login';
+      FROM image_storage;
     `;
 
     const result = await client.query(query);
@@ -21,7 +19,8 @@ const getAllDailyLoginImages = async (req, res) => {
     const images = {};
     result.rows.forEach(row => {
       const imageName = row.image_name.split('.')[0]; 
-      const imageUrl = `${APP_URL}${row.location}`;
+      const encodedLocation = encodeURIComponent(row.location.split('/').pop()); // Encode the last part of the location (the file name)
+      const imageUrl = `${APP_URL}${row.location.replace(row.location.split('/').pop(), encodedLocation)}`; // Replace the file name in the URL with the encoded one
       images[imageName] = imageUrl;
     });
 
@@ -33,4 +32,4 @@ const getAllDailyLoginImages = async (req, res) => {
   }
 };
 
-module.exports = { getAllDailyLoginImages };
+module.exports = { getAllbadges };
