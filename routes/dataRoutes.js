@@ -10,7 +10,7 @@ router.get('/getCategoriesWithImages', getCategoriesWithImages);
 
 router.post('/getParentByCategory', getParentByCategory);
 
-router.get('/getModelsByParentAndCategory', getModelsByParentAndCategory);
+router.post('/getModelsByParentAndCategory', getModelsByParentAndCategory);
 
 
 
