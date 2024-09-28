@@ -30,7 +30,7 @@ CREATE TABLE verification_requests (
 CREATE TABLE user_points (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     points INTEGER DEFAULT 0, 
-    streak_days INTEGER DEFAULT 0, 
+    streak_days INTEGER DEFAULT 1, 
     streak_start_date TIMESTAMP, 
     last_prize_date TIMESTAMP, 
     ai_tools_used INTEGER DEFAULT 0, 
@@ -68,7 +68,7 @@ CREATE TABLE modelTokens (
 
 CREATE TABLE image_storage (
     name VARCHAR(255) PRIMARY KEY,
-    image_name VARCHAR(255) NOT NULL,
+    code_name VARCHAR(255) NOT NULL,
     location VARCHAR(255) NOT NULL,
     category VARCHAR(255) NOT NULL
 );
@@ -83,7 +83,8 @@ CREATE TABLE rewards (
     category VARCHAR(50) NOT NULL,
     numbers INT NOT NULL,
     points INT NOT NULL,
-    badge_name VARCHAR(50) NOT NULL
+    badge_name VARCHAR(50) NOT NULL,
+    code_name VARCHAR(50) NOT NULL 
 );
 
 

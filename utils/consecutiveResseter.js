@@ -23,7 +23,7 @@ const resetStreaksForInactiveUsers = async () => {
         await client.query(
           `
           UPDATE user_points
-          SET consecutive_days = 0, last_used = $1
+          SET consecutive_days = 1, last_used = $1
           WHERE user_id = $2
         `,
           [currentDate, user.user_id]

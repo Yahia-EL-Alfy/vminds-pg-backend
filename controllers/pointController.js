@@ -275,8 +275,9 @@ const updateAiToolUsage = async (userId, modelName) => {
     const userPoints = userRows[0];
     const modelNames = userPoints.used_ai_tools || [];
     let aiToolsUsed = userPoints.ai_tools_used || 0;
-    let responseMessage = 'No new rewards for this usage.';
-    let rewardDetails = null;
+    let points = userPoints.points; // Start with current points
+    let totalPointsAwarded = 0; // To track the total points awarded in this update
+    let badgesWithLogos = []; // Array to store badges and their logos
     let popupFlag = false; // Initialize popup_flag to false
 
     // If the AI tool hasn't been used before, update the usage
@@ -293,14 +294,14 @@ const updateAiToolUsage = async (userId, modelName) => {
 
       // Fetch AI tool usage rewards based on the number of tools used
       const { rows: rewardRows } = await client.query(
-        'SELECT points, badge_name FROM rewards WHERE category = $1 AND numbers = $2',
+        'SELECT points, code_name FROM rewards WHERE category = $1 AND numbers = $2',
         ['tool', aiToolsUsed]
       );
 
       if (rewardRows.length > 0) {
         const reward = rewardRows[0];
         const rewardPoints = reward.points;
-        const badgeName = reward.badge_name.replace(/ /g, '_').toLowerCase();
+        const badgeName = reward.code_name;
 
         // Fetch current AI rewards status
         const { rows: aiRewardRows } = await client.query(
@@ -329,14 +330,15 @@ const updateAiToolUsage = async (userId, modelName) => {
 
         // Check if the user has already been awarded this AI tool reward
         if (!aiRewards[badgeName]) {
-          const newPoints = userPoints.points + rewardPoints;
+          points += rewardPoints;
+          totalPointsAwarded += rewardPoints;
 
           // Update user's points
           await client.query(
             `UPDATE user_points
              SET points = $1
              WHERE user_id = $2`,
-            [newPoints, userId]
+            [points, userId]
           );
 
           // Mark the AI tool reward as claimed
@@ -348,38 +350,39 @@ const updateAiToolUsage = async (userId, modelName) => {
           );
 
           // Fetch the badge logo URL from the image_storage table
-          const { rows: imageRows } = await client.query(
-            `SELECT location FROM image_storage WHERE image_name = $1`,
-            [`${badgeName}.png`]  
+          const { rows: badgeRows } = await client.query(
+            'SELECT location, name FROM image_storage WHERE code_name = $1',
+            [badgeName]
           );
 
           let badgeLogoUrl = null;
-          if (imageRows.length > 0) {
-            badgeLogoUrl = `${process.env.APP_URL}${imageRows[0].location}`;
+          if (badgeRows.length > 0) {
+            badgeLogoUrl = `${process.env.APP_URL}${badgeRows[0].location}`;
           }
 
-          responseMessage = `Awarded ${rewardPoints} points for using ${aiToolsUsed} AI tools`;
-          rewardDetails = {
-            newPoints,
-            badgeAwarded: badgeName,
-            badgeLogo: badgeLogoUrl
-          };
+          // Use the 'name' column from image_storage as the badge name
+          badgesWithLogos.push({
+            badge: badgeRows[0]?.name || badgeName, // If badge name is available, use it; otherwise use the badgeName
+            logo: badgeLogoUrl,
+          });
 
           // Set popup_flag to true since a new badge is awarded
           popupFlag = true;
+
+          console.log(`Awarded ${rewardPoints} points to user ID: ${userId} for using ${aiToolsUsed} AI tools`);
         }
       }
     } else {
-      responseMessage = 'AI tool already used.';
+      console.log('AI tool already used.');
     }
 
     await client.query('COMMIT');
-    
-    // Return the response including popup_flag
-    return { 
-      message: responseMessage, 
-      reward: rewardDetails, 
-      popup_flag: popupFlag // Return the popup_flag
+
+    // Return the response including total points awarded, badge logos, and popup_flag
+    return {
+      pointsAwarded: totalPointsAwarded,
+      badgesAwarded: badgesWithLogos,
+      popup_flag: popupFlag
     };
 
   } catch (error) {
@@ -391,300 +394,6 @@ const updateAiToolUsage = async (userId, modelName) => {
   }
 };
 
-// const updateAiToolUsage = async (userId, modelName) => {
-//   const client = await pool.connect();
-
-//   try {
-//     await client.query('BEGIN');
-
-//     // Fetch user's current AI tools usage and points
-//     const { rows: userRows } = await client.query(
-//       'SELECT ai_tools_used, used_ai_tools, points FROM user_points WHERE user_id = $1',
-//       [userId]
-//     );
-
-//     if (userRows.length === 0) {
-//       throw new Error('User not found');
-//     }
-
-//     const userPoints = userRows[0];
-//     const modelNames = userPoints.used_ai_tools || [];
-//     let aiToolsUsed = userPoints.ai_tools_used || 0;
-
-//     // If the AI tool hasn't been used before, update the usage
-//     if (!modelNames.includes(modelName)) {
-//       modelNames.push(modelName);
-//       aiToolsUsed += 1;
-
-//       await client.query(
-//         `UPDATE user_points
-//          SET ai_tools_used = $1, used_ai_tools = array_append(used_ai_tools, $2)
-//          WHERE user_id = $3`,
-//         [aiToolsUsed, modelName, userId]
-//       );
-
-//       console.log(`Model ${modelName} added for user ID: ${userId}, total AI tools used: ${aiToolsUsed}`);
-
-//       // Fetch AI tool usage rewards based on the number of tools used
-//       const { rows: rewardRows } = await client.query(
-//         'SELECT points, badge_name FROM rewards WHERE category = $1 AND numbers = $2',
-//         ['tool', aiToolsUsed]
-//       );
-
-//       if (rewardRows.length > 0) {
-//         const reward = rewardRows[0];
-//         const rewardPoints = reward.points;
-//         const badgeName = reward.badge_name.replace(/ /g, '_').toLowerCase();
-
-//         // Fetch current AI rewards status
-//         const { rows: aiRewardRows } = await client.query(
-//           'SELECT * FROM used_ai_rewards WHERE user_id = $1',
-//           [userId]
-//         );
-
-//         let aiRewards = aiRewardRows.length > 0 ? aiRewardRows[0] : null;
-
-//         if (!aiRewards) {
-//           // If no AI rewards exist, initialize them
-//           await client.query(
-//             `INSERT INTO used_ai_rewards (user_id)
-//              VALUES ($1)`,
-//             [userId]
-//           );
-
-//           aiRewards = {
-//             asteroid_explorer: false,
-//             planetary_explorer: false,
-//             galactic_explorer: false,
-//             quasar_explorer: false,
-//             cosmic_explorer: false
-//           };
-//         }
-
-//         // Check if the user has already been awarded this AI tool reward
-//         if (!aiRewards[badgeName]) {
-//           const newPoints = userPoints.points + rewardPoints;
-
-//           // Update user's points
-//           await client.query(
-//             `UPDATE user_points
-//              SET points = $1
-//              WHERE user_id = $2`,
-//             [newPoints, userId]
-//           );
-
-//           // Mark the AI tool reward as claimed
-//           await client.query(
-//             `UPDATE used_ai_rewards
-//              SET ${badgeName} = TRUE
-//              WHERE user_id = $1`,
-//             [userId]
-//           );
-
-//           console.log(`Awarded ${rewardPoints} points to user ID: ${userId} for ${aiToolsUsed} AI tools usage`);
-//         }
-//       }
-//     }
-
-//     await client.query('COMMIT');
-//   } catch (error) {
-//     await client.query('ROLLBACK');
-//     console.error('Error updating AI tool usage:', error);
-//   } finally {
-//     client.release();
-//   }
-// };
-
-
-
-
-
-// const updateTokenUsagePoints = async (userId) => {
-//   const client = await pool.connect();
-
-//   // Get the current month
-//   const currentMonth = new Date();
-//   currentMonth.setDate(1); // Set to the first day of the month to standardize
-
-//   try {
-//     await client.query('BEGIN');
-
-//     const { rows: userRows } = await client.query(
-//       'SELECT tokens_used FROM users WHERE id = $1',
-//       [userId]
-//     );
-
-//     if (userRows.length === 0) {
-//       throw new Error('User not found');
-//     }
-
-//     const tokensUsed = userRows[0].tokens_used;
-
-//     const { rows: pointsRows } = await client.query(
-//       'SELECT points FROM user_points WHERE user_id = $1',
-//       [userId]
-//     );
-
-//     if (pointsRows.length === 0) {
-//       throw new Error('User points not found');
-//     }
-
-//     let points = pointsRows[0].points;
-
-//     // Check the token rewards table for this user and month
-//     const { rows: rewardStatusRows } = await client.query(
-//       `SELECT *
-//        FROM token_rewards
-//        WHERE user_id = $1 AND reward_month = $2`,
-//       [userId, currentMonth]
-//     );
-
-//     let rewardStatus = rewardStatusRows.length > 0 ? rewardStatusRows[0] : null;
-
-//     if (!rewardStatus) {
-//       // Insert a new row for this month if it doesn't exist
-//       await client.query(
-//         `INSERT INTO token_rewards (user_id, reward_month)
-//          VALUES ($1, $2)`,
-//         [userId, currentMonth]
-//       );
-
-//       rewardStatus = {
-//         tokens_rookie: false,
-//         tokens_novice: false,
-//         tokens_specialist: false,
-//         tokens_master: false,
-//         tokens_pioneer: false,
-//       };
-//     }
-
-//     // Fetch reward categories from the database
-//     const { rows: rewardCategories } = await client.query(
-//       `SELECT numbers AS threshold, badge_name AS column, points
-//        FROM rewards
-//        WHERE category = $1`,
-//       ['token']
-//     );
-
-//     // Loop through reward categories and update points if criteria met and not already claimed
-//     for (const reward of rewardCategories) {
-//       if (tokensUsed >= reward.threshold && !rewardStatus[reward.column]) {
-//         points += reward.points;
-
-//         await client.query(
-//           `UPDATE token_rewards
-//            SET ${reward.column} = TRUE
-//            WHERE user_id = $1 AND reward_month = $2`,
-//           [userId, currentMonth]
-//         );
-
-//         console.log(`Awarded ${reward.points} points to user ID: ${userId} for spending ${reward.threshold} tokens`);
-//       }
-//     }
-
-//     await client.query(
-//       `UPDATE user_points
-//        SET points = $1
-//        WHERE user_id = $2`,
-//       [points, userId]
-//     );
-
-//     await client.query('COMMIT');
-//   } catch (error) {
-//     await client.query('ROLLBACK');
-//     console.error('Error updating token usage points:', error);
-//   } finally {
-//     client.release();
-//   }
-// };
-
-
-
-// const updateImageCountAndPoints = async (userId) => {
-//   const client = await pool.connect();
-
-//   try {
-//     await client.query('BEGIN');
-
-//     // Fetch the current image count and points for the user
-//     const { rows: userRows } = await client.query(
-//       'SELECT number_of_images, points FROM user_points WHERE user_id = $1',
-//       [userId]
-//     );
-
-//     if (userRows.length === 0) {
-//       throw new Error('User not found');
-//     }
-
-//     let { number_of_images, points } = userRows[0];
-//     number_of_images += 1;
-
-//     // Update the number of images for the user
-//     await client.query(
-//       `UPDATE user_points
-//        SET number_of_images = $1
-//        WHERE user_id = $2`,
-//       [number_of_images, userId]
-//     );
-
-//     // Fetch reward details based on the updated number of images
-//     const { rows: rewardRows } = await client.query(
-//       'SELECT points, badge_name FROM rewards WHERE category = $1 AND numbers = $2',
-//       ['image', number_of_images]
-//     );
-
-//     if (rewardRows.length > 0) {
-//       // Update the user's points
-//       points += rewardRows[0].points;
-
-//       await client.query(
-//         `UPDATE user_points
-//          SET points = $1
-//          WHERE user_id = $2`,
-//         [points, userId]
-//       );
-
-//       // Check if the reward is already received
-//       const { rows: badgeRows } = await client.query(
-//         'SELECT * FROM image_rewards WHERE user_id = $1 FOR UPDATE',
-//         [userId]
-//       );
-
-//       let badgeData;
-//       if (badgeRows.length === 0) {
-//         // If no entry exists, create a new one
-//         const insertBadgeQuery = `
-//           INSERT INTO image_rewards (user_id) VALUES ($1) RETURNING *;
-//         `;
-//         badgeData = await client.query(insertBadgeQuery, [userId]);
-//       } else {
-//         badgeData = badgeRows[0];
-//       }
-
-//       const badgeColumn = rewardRows[0].badge_name.toLowerCase().replace(/\s+/g, '_');
-      
-//       // Check if the badge is already received
-//       if (!badgeData[badgeColumn]) {
-//         // Update the image_rewards table to mark the badge as achieved
-//         const updateBadgeQuery = `
-//           UPDATE image_rewards 
-//           SET ${badgeColumn} = TRUE 
-//           WHERE user_id = $1;
-//         `;
-//         await client.query(updateBadgeQuery, [userId]);
-        
-//         console.log(`Awarded ${rewardRows[0].points} points to user ID: ${userId} and achieved badge: ${rewardRows[0].badge_name}`);
-//       }
-//     }
-
-//     await client.query('COMMIT');
-//   } catch (error) {
-//     await client.query('ROLLBACK');
-//     console.error('Error updating image count and points:', error);
-//   } finally {
-//     client.release();
-//   }
-// };
 
 const updateTokenUsagePoints = async (userId) => {
   const client = await pool.connect();
@@ -747,7 +456,7 @@ const updateTokenUsagePoints = async (userId) => {
 
     // Fetch reward categories from the database
     const { rows: rewardCategories } = await client.query(
-      `SELECT numbers AS threshold, badge_name AS column, points
+      `SELECT numbers AS threshold, code_name AS column, points
        FROM rewards
        WHERE category = $1`,
       ['token']
@@ -771,9 +480,9 @@ const updateTokenUsagePoints = async (userId) => {
           [userId, currentMonth]
         );
 
-        // Fetch the badge logo from image_storage
+        // Compare the reward column with code_name in image_storage table
         const { rows: badgeRows } = await client.query(
-          'SELECT location FROM image_storage WHERE name = $1',
+          'SELECT location, name FROM image_storage WHERE code_name = $1',
           [reward.column]
         );
 
@@ -782,8 +491,9 @@ const updateTokenUsagePoints = async (userId) => {
           badgeLogoUrl = `${process.env.APP_URL}${badgeRows[0].location}`;
         }
 
+        // Use the 'name' column from image_storage as the badge name
         badgesWithLogos.push({
-          badge: reward.column,
+          badge: badgeRows[0]?.name || reward.column, // If badge name is available, use it; otherwise use the reward.column
           logo: badgeLogoUrl,
         });
 
@@ -806,11 +516,9 @@ const updateTokenUsagePoints = async (userId) => {
 
     // Return the response including total points awarded, badge logos, and popup_flag
     return {
-      message: `Token usage points updated successfully.`,
       pointsAwarded: totalPointsAwarded,
-      newTotalPoints: points,
       badgesAwarded: badgesWithLogos,
-      popup_flag: popupFlag,  // Return the popup_flag
+      popup_flag: popupFlag,  
     };
 
   } catch (error) {
@@ -821,6 +529,7 @@ const updateTokenUsagePoints = async (userId) => {
     client.release();
   }
 };
+
 
 const updateImageCountAndPoints = async (userId) => {
   const client = await pool.connect();
@@ -851,7 +560,7 @@ const updateImageCountAndPoints = async (userId) => {
 
     // Fetch reward details based on the updated number of images
     const { rows: rewardRows } = await client.query(
-      'SELECT points, badge_name FROM rewards WHERE category = $1 AND numbers = $2',
+      'SELECT points, badge_name, code_name FROM rewards WHERE category = $1 AND numbers = $2',
       ['image', number_of_images]
     );
 
@@ -860,7 +569,7 @@ const updateImageCountAndPoints = async (userId) => {
     let popupFlag = false; // Initialize popup_flag to false
 
     if (rewardRows.length > 0) {
-      // Update the user's points
+      // Update the user's points based on the reward
       const awardedPoints = rewardRows[0].points;
       points += awardedPoints;
       totalPointsAwarded += awardedPoints;
@@ -872,28 +581,26 @@ const updateImageCountAndPoints = async (userId) => {
         [points, userId]
       );
 
-      // Check if the reward is already received
+      // Check if the user already has the badge for this reward
       const { rows: badgeRows } = await client.query(
         'SELECT * FROM image_rewards WHERE user_id = $1 FOR UPDATE',
         [userId]
       );
 
-      let badgeData;
-      if (badgeRows.length === 0) {
-        // If no entry exists, create a new one
+      let badgeData = badgeRows.length === 0 ? null : badgeRows[0];
+
+      if (!badgeData) {
+        // If no badge entry exists, create a new row in image_rewards
         const insertBadgeQuery = `
           INSERT INTO image_rewards (user_id) VALUES ($1) RETURNING *;
         `;
-        badgeData = await client.query(insertBadgeQuery, [userId]);
-      } else {
-        badgeData = badgeRows[0];
+        badgeData = (await client.query(insertBadgeQuery, [userId])).rows[0];
       }
 
-      const badgeColumn = rewardRows[0].badge_name.toLowerCase().replace(/\s+/g, '_');
+      const badgeColumn = rewardRows[0].code_name;
 
-      // Check if the badge is already received
       if (!badgeData[badgeColumn]) {
-        // Update the image_rewards table to mark the badge as achieved
+        // Update image_rewards table to reflect the badge achievement
         const updateBadgeQuery = `
           UPDATE image_rewards 
           SET ${badgeColumn} = TRUE 
@@ -902,9 +609,10 @@ const updateImageCountAndPoints = async (userId) => {
         await client.query(updateBadgeQuery, [userId]);
 
         // Fetch the badge logo URL
+        console.log("haaaaaaaaaaaaaaa" + badgeColumn );
         const { rows: badgeLogoRows } = await client.query(
-          'SELECT location FROM image_storage WHERE name = $1',
-          [rewardRows[0].badge_name]
+          'SELECT location FROM image_storage WHERE code_name = $1',
+          [badgeColumn]
         );
 
         let badgeLogoUrl = null;
@@ -912,27 +620,23 @@ const updateImageCountAndPoints = async (userId) => {
           badgeLogoUrl = `${process.env.APP_URL}${badgeLogoRows[0].location}`;
         }
 
+        // Add the awarded badge and logo to the response
         badgesWithLogos.push({
           badge: rewardRows[0].badge_name,
           logo: badgeLogoUrl,
         });
 
-        console.log(`Awarded ${awardedPoints} points to user ID: ${userId} and achieved badge: ${rewardRows[0].badge_name}`);
-
-        // Set popup_flag to true since a new badge is awarded
-        popupFlag = true;
+        popupFlag = true; // Set popup flag to true if a badge is awarded
       }
     }
 
     await client.query('COMMIT');
 
-    // Return the response including total points awarded, badge logos, and popup_flag
+    // Return the response including points awarded, badge logos, and popup_flag
     return {
-      message: `Image count and points updated successfully.`,
       pointsAwarded: totalPointsAwarded,
-      newTotalPoints: points,
       badgesAwarded: badgesWithLogos,
-      popup_flag: popupFlag // Return popup_flag
+      popup_flag: popupFlag, // Return popup_flag
     };
 
   } catch (error) {
@@ -943,6 +647,7 @@ const updateImageCountAndPoints = async (userId) => {
     client.release();
   }
 };
+
 
 
 
@@ -984,12 +689,15 @@ const updateDocumentExportCount = async (req, res) => {
       ['document', number_of_pdf_or_pptx]
     );
 
+    let totalPointsAwarded = 0;
+    let badgesWithLogos = [];
     let popupFlag = false; // Initialize popup_flag to false
-    let badgeWithLogo = null; // Initialize badge data to null
 
     if (rewardRows.length > 0) {
       // Update the user's points
-      points += rewardRows[0].points;
+      const awardedPoints = rewardRows[0].points;
+      points += awardedPoints;
+      totalPointsAwarded += awardedPoints;
 
       await client.query(
         `UPDATE user_points
@@ -1038,12 +746,12 @@ const updateDocumentExportCount = async (req, res) => {
           badgeLogoUrl = `${process.env.APP_URL}${badgeLogoRows[0].location}`;
         }
 
-        badgeWithLogo = {
+        badgesWithLogos.push({
           badge: rewardRows[0].badge_name,
           logo: badgeLogoUrl,
-        };
+        });
 
-        console.log(`Awarded ${rewardRows[0].points} points to user ID: ${userId} and achieved badge: ${rewardRows[0].badge_name}`);
+        console.log(`Awarded ${awardedPoints} points to user ID: ${userId} and achieved badge: ${rewardRows[0].badge_name}`);
 
         // Set popup_flag to true since a new badge is awarded
         popupFlag = true;
@@ -1054,10 +762,9 @@ const updateDocumentExportCount = async (req, res) => {
 
     // Send response with updated points, badge data, and popup flag
     res.status(200).json({
-      message: `Document export count updated for user ID: ${userId}`,
-      newTotalPoints: points,
-      badgeAwarded: badgeWithLogo,  // Return badge name and logo if awarded
-      popup_flag: popupFlag,        // Return popup_flag
+      pointsAwarded: totalPointsAwarded,
+      badgesAwarded: badgesWithLogos, // Return badge name and logo if awarded
+      popup_flag: popupFlag,           // Return popup_flag
     });
 
   } catch (error) {
@@ -1069,7 +776,55 @@ const updateDocumentExportCount = async (req, res) => {
   }
 };
 
-    
+
+
+const getUserRanking = async (req, res) => {
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: userPointsRows } = await client.query(
+      'SELECT points FROM user_points WHERE user_id = $1',
+      [userId]
+    );
+    if (userPointsRows.length === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    const userPoints = userPointsRows[0].points;
+
+    const { rows: allPointsRows } = await client.query(
+      'SELECT points FROM user_points'
+    );
+
+    const allPoints = allPointsRows.map(row => row.points);
+
+    allPoints.sort((a, b) => b - a);
+
+    const userRank = allPoints.indexOf(userPoints) + 1;
+    const totalUsers = allPoints.length;
+
+    const percentile = (userRank / totalUsers) * 100;
+
+    const roundedPercentile = Math.ceil(percentile);
+
+    await client.query('COMMIT');
+
+    return res.json({percentage: roundedPercentile});
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error calculating user ranking:', error);
+    return res.status(500).json({ error: 'An error occurred while calculating user ranking.' });
+  } finally {
+    client.release();
+  }
+};
 
 
 
@@ -1083,5 +838,6 @@ module.exports = {
     updateAiToolUsage,
     updateTokenUsagePoints,
     updateImageCountAndPoints,
-    updateDocumentExportCount
+    updateDocumentExportCount,
+    getUserRanking
   };
