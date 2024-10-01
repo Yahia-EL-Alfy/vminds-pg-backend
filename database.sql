@@ -212,3 +212,19 @@ CREATE TABLE tokens (
     token VARCHAR(255) NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+CREATE TABLE invoices (
+    id SERIAL PRIMARY KEY,              -- Auto-incremented ID
+    user_id INT NOT NULL,               -- Reference to user
+    trans_ref VARCHAR(255) NOT NULL,    -- Transaction reference
+    cart_id INT NOT NULL,               -- Reference to cart
+    price DECIMAL(10, 2) NOT NULL,      -- Price of the transaction
+    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp for invoice creation
+    payment_method VARCHAR(50) NOT NULL -- Payment method (e.g., Credit Card, STC Pay)
+);
+
+CREATE TABLE user_agreements (
+    id SERIAL PRIMARY KEY,            -- Auto-incremented ID
+    user_id INT NOT NULL,             -- Reference to user
+    agreement_id VARCHAR(255) NOT NULL -- Agreement ID (for recurring payments or other agreements)
+);
