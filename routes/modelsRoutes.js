@@ -8,6 +8,7 @@ const { handleTextToSpeechRequest } = require('../controllers/aiControllers/spee
 const { handleMusicGenerationRequest, getUserMusicDetails, handleCustomMusicGenerationRequest } = require('../controllers/aiControllers/musicController');
 const { handleLumaGenerationRequest } = require('../controllers/aiControllers/lumaController');
 const { handleSimpleImage } = require("../controllers/aiControllers/simpleImage");
+const { handleDalleImage } = require("../controllers/aiControllers/dalleController");
 
 const upload = multer();
 
@@ -24,6 +25,8 @@ const ensureUserId = (req, res, next) => {
 router.post("/chat", ensureUserId, handleChatRequest);
 router.post("/image", ensureUserId, handleImageRequest);
 router.post("/simple-image", ensureUserId, handleSimpleImage);
+router.post("/dalle-image", ensureUserId, handleDalleImage);
+
 
 router.post('/vision', ensureUserId, handleImageAnalysisRequest);
 router.post('/analyze-local-image', ensureUserId, upload.single('image'), handleLocalImageAnalysisRequest);
