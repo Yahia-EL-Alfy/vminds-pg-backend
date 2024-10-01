@@ -5,7 +5,7 @@ const getAllbadges = async (req, res) => {
   try {
     const client = await pool.connect();
     const query = `
-      SELECT image_name, location 
+      SELECT name, location 
       FROM image_storage;
     `;
 
@@ -18,7 +18,7 @@ const getAllbadges = async (req, res) => {
 
     const images = {};
     result.rows.forEach(row => {
-      const imageName = row.image_name.split('.')[0]; 
+      const imageName = row.name.split('.')[0]; // Corrected: use row.name instead of row.image_name
       const encodedLocation = encodeURIComponent(row.location.split('/').pop()); // Encode the last part of the location (the file name)
       const imageUrl = `${APP_URL}${row.location.replace(row.location.split('/').pop(), encodedLocation)}`; // Replace the file name in the URL with the encoded one
       images[imageName] = imageUrl;
@@ -31,5 +31,6 @@ const getAllbadges = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
 
 module.exports = { getAllbadges };

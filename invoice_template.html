@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+    }
+    .invoice-container {
+      background-color: #ffffff;
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px;
+      border: 1px solid #dddddd;
+      border-radius: 5px;
+    }
+    h1 {
+      color: #333333;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    .invoice-header, .invoice-body, .invoice-footer {
+      margin-bottom: 20px;
+    }
+    .invoice-header {
+      text-align: center;
+    }
+    .invoice-details, .customer-details {
+      margin-bottom: 15px;
+    }
+    .invoice-details div, .customer-details div {
+      margin-bottom: 5px;
+    }
+    .total-amount {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .description {
+      margin-bottom: 15px;
+    }
+    .footer-text {
+      text-align: center;
+      color: #777777;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="invoice-container">
+  <div class="invoice-header">
+    <h1>INVOICE</h1>
+    <p>VMINDS.AI</p>
+    <p>King Road, Al Shatea District, Jeddah, Saudi Arabia</p>
+    <p>TIN: 310751536800003</p>
+  </div>
+
+  <div class="invoice-body">
+    <div class="invoice-details">
+      <div><strong>Issue Date:</strong> September 29, 2024</div>
+      <div><strong>Invoice Number:</strong> 1368438</div>
+      <div><strong>Amount:</strong> SAR 5.99</div>
+    </div>
+
+    <div class="customer-details">
+      <div><strong>Billed to:</strong> Ahmed Al Mashhadi</div>
+      <div>Email: mash402sa@icloud.com</div>
+      <div>King AbdulAziz Road, Jeddah, Saudi Arabia</div>
+    </div>
+
+    <div class="description">
+      <strong>Description:</strong>
+      <p>Purchase of package 1</p>
+      <p>Test Description</p>
+    </div>
+
+    <div class="payment-details">
+      <strong>Payment Method:</strong> Visa ending in 6936<br>
+      <strong>Transaction Reference:</strong> PTS2427338476735<br>
+      <strong>Total Amount:</strong> SAR 5.59
+    </div>
+
+    <div class="time-details">
+      <strong>Time:</strong> 13:37<br>
+      <strong>Date:</strong> 29/Sep/2024
+    </div>
+  </div>
+
+  <div class="invoice-footer">
+    <p class="footer-text">Thank you for your purchase! If you have any questions, please contact us at support@vminds.ai.</p>
+  </div>
+</div>
+
+</body>
+</html>
