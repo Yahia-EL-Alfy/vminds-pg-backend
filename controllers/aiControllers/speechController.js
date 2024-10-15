@@ -4,7 +4,7 @@ const { updateAiToolUsage, updateTokenUsagePoints, updateLoginStreak } = require
 
 const handleTextToSpeechRequest = async (req, res) => {
     const { text, model } = req.body;
-    const userId = req.userId; 
+    const userId = req.userId;
 
     if (!text || !model) {
         return res.status(400).json({ error: "Text and model are required." });
@@ -23,7 +23,7 @@ const handleTextToSpeechRequest = async (req, res) => {
 
         const user = userResult.rows[0];
 
-        const { data, tokensUsed, durationInSeconds } = await convertTextToSpeech(model, text);
+        const { audioData, tokensUsed, durationInSeconds } = await convertTextToSpeech(model, text);
 
         if (user.available_tokens < tokensUsed) {
             client.release();
@@ -42,7 +42,7 @@ const handleTextToSpeechRequest = async (req, res) => {
             VALUES ($1, $2, $3, $4, $5)
            RETURNING id;
         `;
-        const logResult = await client.query(logQuery, [userId, 'tts-model', text, `Generated audio of ${durationInSeconds.toFixed(2)} seconds`, tokensUsed]);
+        const logResult = await client.query(logQuery, [userId, model, text, `Generated audio of ${durationInSeconds.toFixed(2)} seconds`, tokensUsed]);
         const logId = logResult.rows[0].id;
 
         const usageUpdateResult = await updateAiToolUsage(userId, model);
@@ -51,20 +51,19 @@ const handleTextToSpeechRequest = async (req, res) => {
 
         client.release();
 
-        res.set({
-            'Log-ID': logId,
-        });
 
         return res.status(200).json({
-            audio:data,
+            audio: audioData,  // Return base64 audio
             usageUpdate: usageUpdateResult,
-            tokenUsage: tokenUsageRes
+            tokenUsage: tokenUsageRes,
+            logId
         });
     } catch (error) {
         console.error("Error in handleTextToSpeechRequest:", error);
         return res.status(500).json({ error: "Failed to process text to speech request." });
     }
 };
+
 
 module.exports = {
     handleTextToSpeechRequest,

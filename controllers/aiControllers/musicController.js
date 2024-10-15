@@ -2,7 +2,7 @@ const pool = require('../../config/database');
 const { generateMusic } = require('../../ai_models/musicModel');
 const { fetchMusicDetails } = require('../../ai_models/musicModel');
 const { generateCustomMusic } = require('../../ai_models/musicModel');
-const model = "music";
+const model = "suno";
 const { updateAiToolUsage,updateTokenUsagePoints,updateLoginStreak } = require('../pointController');
 
 
@@ -172,20 +172,17 @@ const handleMusicGenerationRequest = async (req, res) => {
             VALUES ($1, $2, $3, $4, $5)
            RETURNING id;
         `;
-        const logResult = await client.query(logQuery, [userId, 'music-generation', prompt, JSON.stringify(musicResponse), tokensRequired]);
+        const logResult = await client.query(logQuery, [userId,model, prompt, JSON.stringify(musicResponse), tokensRequired]);
         const logId = logResult.rows[0].id;
 
-        // Update user tool usage, token points, and login streak
-    // Update AI tool usage and get the reward response
+
         const usageUpdateResult = await updateAiToolUsage(userId, model);
 
     // Update token usage points
         const tokenUsageRes = await updateTokenUsagePoints(userId);
         await updateLoginStreak(userId);
 
-        // Release client and return response
         client.release();
-        res.setHeader('Log-ID', logId);
 
         return res.status(200).json({
             music1: {
@@ -206,7 +203,8 @@ const handleMusicGenerationRequest = async (req, res) => {
             },
             tokensUsed: tokensRequired,
             usageUpdate: usageUpdateResult,
-            tokenUsage: tokenUsageRes
+            tokenUsage: tokenUsageRes,
+            logId
         });
 
     } catch (error) {
@@ -315,7 +313,7 @@ const handleCustomMusicGenerationRequest = async (req, res) => {
             VALUES ($1, $2, $3, $4, $5)
            RETURNING id;
         `;
-        const logResult = await client.query(logQuery, [userId, 'custom-music-generation', prompt, JSON.stringify(musicResponse), tokensRequired]);
+        const logResult = await client.query(logQuery, [userId, model, prompt, JSON.stringify(musicResponse), tokensRequired]);
         const logId = logResult.rows[0].id;
         await updateAiToolUsage(userId, model);
         await updateTokenUsagePoints(userId);

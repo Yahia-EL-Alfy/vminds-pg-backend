@@ -1,7 +1,7 @@
 const pool = require('../../config/database');
 const { analyzeImage, analyzeLocalImage } = require("../../ai_models/analyseImg");
 const { updateAiToolUsage,updateTokenUsagePoints,updateLoginStreak } = require('../pointController');
-const model = "vision-model" ;
+const model = "GPT-4o" ;
 
 
 const handleImageAnalysisRequest = async (req, res) => {
@@ -54,11 +54,11 @@ const handleImageAnalysisRequest = async (req, res) => {
 
       
         client.release();
-        res.setHeader('Log-ID', logId); 
 
         return res.status(200).json({ response: responseText, tokensUsed,
           usageUpdate: usageUpdateResult,
-          tokenUsage: tokenUsageRes
+          tokenUsage: tokenUsageRes,
+          logId
          });
     } catch (error) {
         console.error("Error in handleImageAnalysisRequest:", error);
@@ -117,11 +117,11 @@ const handleLocalImageAnalysisRequest = async (req, res) => {
 
 
     client.release();
-    res.setHeader('Log-ID', logId); 
 
     return res.status(200).json({ response: responseText, tokensUsed,
       usageUpdate: usageUpdateResult,
-      tokenUsage: tokenUsageRes
+      tokenUsage: tokenUsageRes,
+      logId
      });
   } catch (error) {
     console.error("Error in handleLocalImageAnalysisRequest:", error);

@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { addTokenToUserfunc } = require('./tokensController');
 
 // Add Promo Code
 const addPromoCode = async (req, res) => {
@@ -39,7 +40,79 @@ const viewAllPromoCodes = async (req, res) => {
     }
 };
 
+const applyTokensPromoCode = async (req, res) => {
+    const userId = req.userId;  // Extract user ID from the request (assumes user is authenticated)
+    const { promocode } = req.body;
+
+    // Validate that a promo code is provided
+    if (!promocode) {
+        return res.status(400).json({ error: "Promo code is required." });
+    }
+
+    try {
+        const client = await pool.connect();
+
+        try {
+            // Begin the database transaction
+            await client.query('BEGIN');
+
+            // Check if the promo code exists, is valid, and has not been used
+            const promoResult = await client.query(
+                'SELECT * FROM tokens_promo WHERE code = $1',
+                [promocode]
+            );
+
+            // Check if promo code exists
+            if (promoResult.rows.length === 0) {
+                return res.status(400).json({ error: 'Invalid promo code.' });
+            }
+
+            const promo = promoResult.rows[0];
+
+            // Check if promo code has already been used
+            if (promo.used) {
+                return res.status(400).json({ error: 'Promo code has already been used.' });
+            }
+
+            const { tokens, id: promoId } = promo;
+
+            // Add tokens to the user account using the addTokenToUserfunc
+            const addTokenResult = await addTokenToUserfunc(userId, tokens);
+
+            // Mark the promo code as used by this user
+            await client.query(
+                'UPDATE tokens_promo SET used = true, used_by = $1 WHERE id = $2',
+                [userId, promoId]
+            );
+
+            // Commit the transaction
+            await client.query('COMMIT');
+
+            return res.status(200).json({
+                message: 'Promo code applied successfully.',
+                tokensAdded: tokens,
+                newTokenBalance: addTokenResult.message
+            });
+
+        } catch (error) {
+            // Rollback the transaction in case of an error
+            await client.query('ROLLBACK');
+            console.error('Transaction error:', error);
+            return res.status(500).json({ error: 'Server error' });
+        } finally {
+            client.release();  // Release the database client
+        }
+
+    } catch (error) {
+        console.error('Database connection error:', error);
+        return res.status(500).json({ error: 'Server error' });
+    }
+};
+
+
+
 module.exports = {
     addPromoCode,
-    viewAllPromoCodes
+    viewAllPromoCodes,
+    applyTokensPromoCode
 };

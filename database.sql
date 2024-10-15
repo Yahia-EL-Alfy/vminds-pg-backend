@@ -137,6 +137,11 @@ CREATE TABLE used_ai_rewards (
     quasar_explorer BOOLEAN DEFAULT FALSE,
     cosmic_explorer BOOLEAN DEFAULT FALSE
 );
+CREATE TABLE categories (
+    id integer NOT NULL,
+    name character varying(100) NOT NULL,
+    image_url text
+);
 
 CREATE TABLE ai_parents (
     id SERIAL PRIMARY KEY,
@@ -171,14 +176,16 @@ CREATE TABLE packages (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
-    tokens INTEGER NOT NULL
+    tokens INTEGER NOT NULL,
+    type INT
 );
+
 CREATE TABLE promocodes (
     id SERIAL PRIMARY KEY,
     code VARCHAR(50) UNIQUE NOT NULL,
-    discount DECIMAL(5, 2),    -- Discount in percentage or fixed value
-    extra_tokens INTEGER,      -- Additional tokens if promo applies
-    expiry_date TIMESTAMP      -- Expiry date for the promo code
+    discount DECIMAL(5, 2),   
+    extra_tokens INTEGER,      
+    expiry_date TIMESTAMP      
 );
  CREATE TABLE user_packages (
     id SERIAL PRIMARY KEY,
@@ -187,13 +194,7 @@ CREATE TABLE promocodes (
     start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     end_date TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + interval '1 month')
  );
- CREATE TABLE cart (
-    id SERIAL PRIMARY KEY,
-    price DECIMAL(10, 2) NOT NULL,
-    tokens INTEGER NOT NULL,
-    package_id INT REFERENCES packages(id) ON DELETE CASCADE,
-    promo_code_id INT REFERENCES promocodes(id) ON DELETE SET NULL
-);
+
 CREATE TABLE transaction_logs (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -203,9 +204,10 @@ CREATE TABLE transaction_logs (
     response_message TEXT,
     transaction_time TIMESTAMP NOT NULL,
     payment_info JSONB,
-    cart_id INT REFERENCES cart(id) ON DELETE CASCADE,
+    cart_id INT REFERENCES packages(id) ON DELETE CASCADE,  -- Updated foreign key reference
     amount DECIMAL(10, 2) NOT NULL
 );
+
 CREATE TABLE tokens (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
@@ -227,4 +229,80 @@ CREATE TABLE user_agreements (
     id SERIAL PRIMARY KEY,            -- Auto-incremented ID
     user_id INT NOT NULL,             -- Reference to user
     agreement_id VARCHAR(255) NOT NULL -- Agreement ID (for recurring payments or other agreements)
+);
+
+CREATE TABLE refunds (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    tran_ref VARCHAR(255) NOT NULL,
+    refund_amount DECIMAL(10, 2) NOT NULL,
+    refund_reason TEXT,
+    transaction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    refund_tran_ref VARCHAR(255)
+);
+
+CREATE TABLE cancel_requests (
+    id SERIAL PRIMARY KEY,
+    agreement_id INT NOT NULL,
+    user_id INT NOT NULL,
+    cancelled BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE users_cc_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    last4 VARCHAR(4) NOT NULL,
+    payment_description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+ALTER TABLE users_cc_tokens
+ADD CONSTRAINT unique_token UNIQUE (token);
+
+CREATE TABLE tokens_promo (
+    id SERIAL PRIMARY KEY,
+    used_by INT REFERENCES users(id) ON DELETE SET NULL,
+    code VARCHAR(255) NOT NULL UNIQUE,
+    tokens INT NOT NULL,
+    used BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE popular_tools (
+    id SERIAL PRIMARY KEY,
+    model_id INTEGER REFERENCES ai_models(id),
+    rank INT NOT NULL,   -- Rank 1 to 8
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE reset_password (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    reset_token VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE chat_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    chat_token VARCHAR(255),   
+    bot_type VARCHAR(50) NOT NULL, 
+    request TEXT NOT NULL,          
+    response TEXT,                 
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
+);
+
+ALTER TABLE chat_logs
+ADD COLUMN log_id INTEGER REFERENCES usage_logs(id);
+
+CREATE TABLE bookmarks (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    message_id INTEGER REFERENCES chat_logs(id) ON DELETE CASCADE
 );

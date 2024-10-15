@@ -1,9 +1,113 @@
+// const { getAIResponse } = require("../../ai_models/chatgpt");
+// const pool = require('../../config/database');
+// const { updateAiToolUsage, updateTokenUsagePoints, updateLoginStreak } = require('../pointController');
+
+// const handleChatRequest = async (req, res) => {
+//   const { message, model } = req.body;
+//   const userId = req.userId;
+
+//   if (!message) {
+//     return res.status(400).json({ error: "Message is required." });
+//   }
+
+//   try {
+//     const client = await pool.connect();
+
+//     // Fetch user data
+//     const userQuery = 'SELECT available_tokens, tokens_used, max_tokens FROM users WHERE id = $1';
+//     const userResult = await client.query(userQuery, [userId]);
+
+//     if (userResult.rows.length === 0) {
+//       client.release();
+//       return res.status(404).json({ error: "User not found." });
+//     }
+
+//     const user = userResult.rows[0];
+//     const maxTokens = user.max_tokens;
+
+//     // Check if the user has sufficient tokens
+//     if (user.available_tokens < maxTokens) {
+//       client.release();
+//       return res.status(403).json({ error: "Insufficient tokens." });
+//     }
+
+//     // Get AI response and tokens used
+//     const { responseText, tokensUsed } = await getAIResponse(message, model, maxTokens);
+
+//     // Update user's token usage
+//     const updateTokensQuery = `
+//         UPDATE users
+//         SET tokens_used = tokens_used + $1, available_tokens = available_tokens - $1
+//         WHERE id = $2
+//     `;
+//     await client.query(updateTokensQuery, [tokensUsed, userId]);
+
+//     // Log the usage
+//     const logQuery = `
+//         INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
+//         VALUES ($1, $2, $3, $4, $5)
+//         RETURNING id;
+//     `;
+//     const logResult = await client.query(logQuery, [userId, model, message, responseText, tokensUsed]);
+//     const logId = logResult.rows[0].id;
+
+//     // Update AI tool usage and get the reward response
+//     const usageUpdateResult = await updateAiToolUsage(userId, model);
+
+//     // Update token usage points
+//     const tokenUsageRes = await updateTokenUsagePoints(userId);
+//     await updateLoginStreak(userId);
+
+//     client.release();
+    
+
+//     // Combine the AI response, tool usage update, and token usage update into a single JSON response
+//     return res.status(200).json({
+//       response: responseText,
+//       usageUpdate: usageUpdateResult,
+//       tokenUsage: tokenUsageRes,
+//       logId
+//     });
+//   } catch (error) {
+//     console.error("Error in handleChatRequest:", error);
+//     return res.status(500).json({ error: "Failed to get AI response." });
+//   }
+// };
+
+// module.exports = {
+//   handleChatRequest,
+// };
+
 const { getAIResponse } = require("../../ai_models/chatgpt");
 const pool = require('../../config/database');
-const { updateAiToolUsage,updateTokenUsagePoints ,updateLoginStreak } = require('../pointController');
+const { updateAiToolUsage, updateTokenUsagePoints, updateLoginStreak } = require('../pointController');
 
-const handleChatRequest = async (req, res) => {
-  const { message, model } = req.body;
+// Helper function to build message history with a limit of the last 10 messages
+const buildMessageHistory = async (memoryToken, newMessage, client) => {
+  const messageHistoryQuery = `
+    SELECT request, response
+    FROM chat_logs
+    WHERE chat_token = $1
+    ORDER BY created_at DESC
+    LIMIT 10
+  `;
+  const historyResult = await client.query(messageHistoryQuery, [memoryToken]);
+
+  // Reverse to get messages in the correct chronological order
+  const messages = historyResult.rows.reverse().map(entry => [
+    { role: 'user', content: entry.request },
+    { role: 'assistant', content: entry.response }
+  ]).flat();
+
+  // Append the new message at the end
+  messages.push({ role: 'user', content: newMessage });
+  
+  return messages;
+};
+
+// Combined API for starting or continuing a chat
+const chatHandler = async (req, res) => {
+  const { message, model, memoryToken } = req.body;  // memoryToken instead of chatToken
   const userId = req.userId;
 
   if (!message) {
@@ -25,57 +129,84 @@ const handleChatRequest = async (req, res) => {
     const user = userResult.rows[0];
     const maxTokens = user.max_tokens;
 
-    // Check if the user has sufficient tokens
     if (user.available_tokens < maxTokens) {
       client.release();
       return res.status(403).json({ error: "Insufficient tokens." });
     }
 
-    // Get AI response and tokens used
-    const { responseText, tokensUsed } = await getAIResponse(message, model, maxTokens);
+    let messages;
+    let isNewChat = false;
+    let newMemoryToken = memoryToken;
 
-    // Update user's token usage
+    if (memoryToken) {
+      // Continue an existing chat, fetching last 10 messages
+      messages = await buildMessageHistory(memoryToken, message, client);
+    } else {
+      // Start a new chat
+      isNewChat = true;
+      newMemoryToken = require('crypto').randomUUID();  // Generates memoryToken
+      messages = [{ role: 'user', content: message }];
+    }
+
+    // Get AI response
+    const { responseText, tokensUsed } = await getAIResponse(messages, model, maxTokens);
+
+    // Save the chat history to the database
+    const chatHistoryQuery = `
+      INSERT INTO chat_logs (user_id, chat_token, request, response, bot_type)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id;  -- Return the newly created chat_logs id
+    `;
+    const chatHistoryResult = await client.query(chatHistoryQuery, [userId, newMemoryToken, message, responseText, model]);  
+    const chatLogId = chatHistoryResult.rows[0].id;  // Get the new chat log ID
+
+    // Log usage in usage_logs and return its ID
+    const logQuery = `
+      INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id;  -- Return the newly created usage_logs id
+    `;
+    const logResult = await client.query(logQuery, [userId, model, message, responseText, tokensUsed]);
+    const usageLogId = logResult.rows[0].id;  // Get the new usage log ID
+
+    // Update the chat_logs table to reference the new log_id
+    await client.query(`
+      UPDATE chat_logs
+      SET log_id = $1
+      WHERE id = $2
+    `, [usageLogId, chatLogId]);
+
+    // Update the user's tokens
     const updateTokensQuery = `
-        UPDATE users
-        SET tokens_used = tokens_used + $1, available_tokens = available_tokens - $1
-        WHERE id = $2
+      UPDATE users
+      SET tokens_used = tokens_used + $1, available_tokens = available_tokens - $1
+      WHERE id = $2
     `;
     await client.query(updateTokensQuery, [tokensUsed, userId]);
 
-    // Log the usage
-    const logQuery = `
-        INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id;
-    `;
-    const logResult = await client.query(logQuery, [userId, model, message, responseText, tokensUsed]);
-    const logId = logResult.rows[0].id;
-
-    // Update AI tool usage and get the reward response
+    // Update AI tool usage and rewards
     const usageUpdateResult = await updateAiToolUsage(userId, model);
-
-    // Update token usage points
     const tokenUsageRes = await updateTokenUsagePoints(userId);
-     await updateLoginStreak(userId);
-
+    await updateLoginStreak(userId);
 
     client.release();
-    
-    // Set the log ID in the response headers
-    res.setHeader('Log-ID', logId);
 
-    // Combine the AI response, tool usage update, and token usage update into a single JSON response
+    // Return the AI response, memoryToken, and both IDs
     return res.status(200).json({
       response: responseText,
+      memoryToken: newMemoryToken,  // Return memoryToken instead of chatToken
+      log_id: usageLogId,  // ID from usage_logs table
+      message_id: chatLogId,   // ID from chat_logs table
       usageUpdate: usageUpdateResult,
-      tokenUsage: tokenUsageRes
+      tokenUsage: tokenUsageRes,
+      isNewChat
     });
   } catch (error) {
-    console.error("Error in handleChatRequest:", error);
-    return res.status(500).json({ error: "Failed to get AI response." });
+    console.error("Error in chatHandler:", error);
+    return res.status(500).json({ error: "Failed to process chat." });
   }
 };
 
 module.exports = {
-  handleChatRequest,
+  chatHandler,
 };

@@ -72,12 +72,12 @@ const handleImageRequest = async (req, res) => {
          await updateLoginStreak(userId);
 
     client.release();
-    res.setHeader('Log-ID', logId); 
     return res.status(200).json({ 
       imageUrl,
       usageUpdate: usageUpdateResult,
       tokenUsage: tokenUsageRes,
-      imagePoints: imagecountres
+      imagePoints: imagecountres,
+      logId
 
      });
   } catch (error) {

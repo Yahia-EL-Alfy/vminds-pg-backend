@@ -1,7 +1,7 @@
 const express = require("express");
 const multer = require('multer');
 
-const { handleChatRequest } = require("../controllers/aiControllers/chatController");
+const { chatHandler } = require("../controllers/aiControllers/chatController");
 const { handleImageRequest } = require("../controllers/aiControllers/imageController");
 const { handleImageAnalysisRequest, handleLocalImageAnalysisRequest } = require('../controllers/aiControllers/analyseController');
 const { handleTextToSpeechRequest } = require('../controllers/aiControllers/speechController');
@@ -22,7 +22,7 @@ const ensureUserId = (req, res, next) => {
 };
 
 
-router.post("/chat", ensureUserId, handleChatRequest);
+router.post('/chat', ensureUserId, chatHandler);
 router.post("/image", ensureUserId, handleImageRequest);
 router.post("/simple-image", ensureUserId, handleSimpleImage);
 router.post("/dalle-image", ensureUserId, handleDalleImage);

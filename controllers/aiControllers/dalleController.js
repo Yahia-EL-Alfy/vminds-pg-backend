@@ -64,14 +64,13 @@ const handleDalleImage = async (req, res) => {
 
         client.release();
 
-        // Send the URL in the response instead of a Base64 image
-        res.setHeader('Log-ID', logId); // Custom header to include log ID
 
         return res.status(200).json({ 
             imageUrl,
             usageUpdate: usageUpdateResult,
             tokenUsage: tokenUsageRes,
-            imagePoints: imagecountres
+            imagePoints: imagecountres,
+            logId
       
            });
     } catch (error) {

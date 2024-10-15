@@ -14,19 +14,16 @@ const convertTextToSpeech = async (model, text) => {
 
     try {
         const response = await axios.post(url, payload, { headers: headers, responseType: 'arraybuffer' });
-        // console.log('API Response:', response.data);
-        const data = response.data;
         
+        const data = response.data;
+        const base64Audio = Buffer.from(data).toString('base64');  // Convert binary to base64
+
         const audioData = await wav.decode(response.data);
         const durationInSeconds = audioData.channelData[0].length / audioData.sampleRate;
 
-        console.log(`Duration of the audio: ${durationInSeconds.toFixed(2)} seconds`);
-
         const tokensUsed = Math.ceil(durationInSeconds * 1600);
 
-        console.log(`Tokens Used: ${tokensUsed}`);
-
-        return { audioData: response.data, tokensUsed, durationInSeconds,data };
+        return { audioData: base64Audio, tokensUsed, durationInSeconds };
     } catch (error) {
         if (error.response && error.response.data) {
             const errorMessage = Buffer.from(error.response.data).toString('utf8');
@@ -37,6 +34,7 @@ const convertTextToSpeech = async (model, text) => {
         throw new Error('Failed to convert text to speech.');
     }
 };
+
 
 module.exports = {
     convertTextToSpeech

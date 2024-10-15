@@ -13,7 +13,8 @@ const callback = async (req, res) => {
         cart_amount,
         customer_details,
         user_defined,
-        agreement_id // Agreement ID might be present
+        token, // Token might be undefined if saveCard is false
+        payment_info: { payment_description }
     } = req.body;
 
     const { udf3 } = user_defined;
@@ -21,13 +22,14 @@ const callback = async (req, res) => {
     const { udf4 } = user_defined;
     const tokens = parseInt(udf4, 10);
     const { response_status, response_code, response_message, transaction_time } = payment_result;
-    const { payment_method, payment_description } = payment_info;
+    const { payment_method } = payment_info;
+
+    const last4 = payment_description ? payment_description.slice(-4) : ''; // Extract the last 4 digits, if available
 
     let client;
     try {
         client = await pool.connect();
 
-        // Fetch user details using user_id from user-defined attributes
         const userQuery = 'SELECT * FROM users WHERE id = $1';
         const userResult = await client.query(userQuery, [user_id]);
 
@@ -37,10 +39,10 @@ const callback = async (req, res) => {
 
         const { id: userId, email } = userResult.rows[0];
 
-        // Log transaction
+        // Insert into transaction_logs
         const insertTransactionLogQuery = `
-            INSERT INTO transaction_logs (user_id, tran_ref, response_code, response_status, response_message, transaction_time, payment_info, amount)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO transaction_logs (user_id, tran_ref, response_code, response_status, response_message, transaction_time, payment_info, cart_id, amount)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `;
         await client.query(insertTransactionLogQuery, [
             userId,
@@ -49,48 +51,62 @@ const callback = async (req, res) => {
             response_status,
             response_message,
             transaction_time,
-            JSON.stringify(payment_info), // Serialize payment info
+            JSON.stringify(payment_info),
+            cart_id,
             cart_amount
         ]);
 
-        // Store invoice data in the invoices table
+        // Insert into invoices
         const insertInvoiceQuery = `
             INSERT INTO invoices (user_id, trans_ref, cart_id, price, date, payment_method)
             VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
         `;
-        await client.query(insertInvoiceQuery, [
+        const invoiceResult = await client.query(insertInvoiceQuery, [
             userId,
             tran_ref,
             cart_id,
             cart_amount,
-            transaction_time, // Storing transaction time as the invoice date
+            transaction_time,
             payment_method
         ]);
 
-        // If agreement_id exists in the request, store it in the user_agreements table
-        if (agreement_id) {
-            const insertAgreementQuery = `
-                INSERT INTO user_agreements (user_id, agreement_id)
-                VALUES ($1, $2)
+        const invoiceId = invoiceResult.rows[0].id;
+
+        // Store the credit card token and last 4 digits (if token is provided)
+        if (token) {
+            const insertCcTokenQuery = `
+                INSERT INTO users_cc_tokens (user_id, token, last4, payment_description)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (token) DO NOTHING
             `;
-            await client.query(insertAgreementQuery, [userId, agreement_id]);
+            await client.query(insertCcTokenQuery, [userId, token, last4, payment_description]);
         }
 
-        // Handle successful payment
         if (response_status === 'A') {
-            const insertUserPackageQuery = `
-                INSERT INTO user_packages (user_id, package_id)
-                VALUES ($1, $2)
-            `;
-            await client.query(insertUserPackageQuery, [userId, cart_id]);
+            const packageTypeQuery = 'SELECT type FROM packages WHERE id = $1';
+            const packageTypeResult = await client.query(packageTypeQuery, [cart_id]);
+
+            if (packageTypeResult.rows.length > 0) {
+                const packageType = packageTypeResult.rows[0].type;
+
+                if (packageType === 1) {
+                    const insertUserPackageQuery = `
+                        INSERT INTO user_packages (user_id, package_id, tran_ref)
+                        VALUES ($1, $2, $3)
+                    `;
+                    await client.query(insertUserPackageQuery, [userId, cart_id, tran_ref]);
+                }
+            }
 
             await addTokenToUserfunc(userId, tokens);
 
             let total = cart_amount;
-            let vat = cart_amount * 15 / 100; 
-            total = total - vat; 
-            
+            let vat = cart_amount * 15 / 100;
+            total = total - vat;
+
             await sendInvoiceEmail({
+                invoiceId,
                 total,
                 vat,
                 cart_amount,
@@ -122,6 +138,7 @@ const callback = async (req, res) => {
         }
     }
 };
+
 
 module.exports = {
     callback

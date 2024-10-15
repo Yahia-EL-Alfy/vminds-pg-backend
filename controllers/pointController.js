@@ -829,6 +829,69 @@ const getUserRanking = async (req, res) => {
 
 
 
+const convertPointsToTokens = async (req, res) => {
+  const userId = req.userId; // Extract userId from the request token
+  const { pointsToConvert } = req.body; // User inputs how many points they want to convert
+
+  // Check if pointsToConvert is provided and valid
+  if (!pointsToConvert || pointsToConvert <= 0) {
+      return res.status(400).json({ error: "Please provide a valid number of points to convert." });
+  }
+
+  let client;
+  try {
+      client = await pool.connect();
+
+      // Fetch the user's current points from user_points table
+      const pointsQuery = `SELECT points FROM user_points WHERE user_id = $1;`;
+      const pointsResult = await client.query(pointsQuery, [userId]);
+
+      if (pointsResult.rows.length === 0) {
+          return res.status(404).json({ error: "User points not found." });
+      }
+
+      const currentPoints = pointsResult.rows[0].points;
+
+      // Check if user has enough points to convert
+      if (currentPoints < pointsToConvert) {
+          return res.status(400).json({ error: "Insufficient points." });
+      }
+
+      // Calculate the tokens from points (divide by 15, truncate decimals, then multiply by 1000)
+      const tokensToAdd = Math.trunc(pointsToConvert / 15 * 1000);
+
+      // Deduct the points from user_points
+      const deductPointsQuery = `
+          UPDATE user_points 
+          SET points = points - $1
+          WHERE user_id = $2;
+      `;
+      await client.query(deductPointsQuery, [pointsToConvert, userId]);
+
+      // Update available_tokens in users table
+      const updateTokensQuery = `
+          UPDATE users
+          SET available_tokens = available_tokens + $1
+          WHERE id = $2;
+      `;
+      await client.query(updateTokensQuery, [tokensToAdd, userId]);
+
+      res.status(200).json({
+          message: `${tokensToAdd} tokens added to user with ID ${userId}`,
+          tokensAdded: tokensToAdd,
+          pointsDeducted: pointsToConvert
+      });
+  } catch (error) {
+      console.error("Error converting points to tokens:", error);
+      res.status(500).json({ error: "Internal server error." });
+  } finally {
+      if (client) {
+          client.release(); // Ensure the client is released in case of an error
+      }
+  }
+};
+
+
 
 module.exports = { 
     checkDailyLogin,
@@ -839,5 +902,6 @@ module.exports = {
     updateTokenUsagePoints,
     updateImageCountAndPoints,
     updateDocumentExportCount,
-    getUserRanking
+    getUserRanking,
+    convertPointsToTokens
   };

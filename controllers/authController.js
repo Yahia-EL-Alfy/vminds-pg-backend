@@ -120,24 +120,22 @@ const signUpThirdParty = async (req, res) => {
     client.release();
   }
 };
-
-
 const signIn = async (req, res) => {
-  const { email, password } = req.body;
+  const { emailOrUsername, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
+  if (!emailOrUsername || !password) {
+    return res.status(400).json({ error: 'Email/Username and password are required.' });
   }
 
   const client = await pool.connect();
 
   try {
-    const userQuery = `
+    let userQuery = `
       SELECT id, first_name, last_name, username, email, password_hash 
       FROM users 
-      WHERE email = $1
+      WHERE email = $1 OR username = $2;
     `;
-    const userResult = await client.query(userQuery, [email]);
+    const userResult = await client.query(userQuery, [emailOrUsername, emailOrUsername]);
 
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found.' });
@@ -166,9 +164,90 @@ const signIn = async (req, res) => {
   }
 };
 
+const deleteUsageLogs = async (req, res) => {
+  const userId = req.userId; // Assuming userId is extracted from middleware
+
+  if (!userId) {
+      return res.status(400).json({ error: 'User ID is required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+      await client.query('BEGIN');
+
+      // Delete all logs for the specified user
+      const result = await client.query(
+          'DELETE FROM usage_logs WHERE user_id = $1',
+          [userId]
+      );
+
+      await client.query('COMMIT');
+
+      return res.json({ message: 'All usage logs deleted successfully.', deletedCount: result.rowCount });
+
+  } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error deleting usage logs:', error);
+      return res.status(500).json({ error: 'An error occurred while deleting usage logs.' });
+  } finally {
+      client.release();
+  }
+};
+const deleteUserAndLogs = async (req, res) => {
+  const userId = req.userId; // Assuming userId is extracted from middleware
+
+  if (!userId) {
+      return res.status(400).json({ error: 'User ID is required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+      await client.query('BEGIN');
+
+      // Delete all related entries from other tables
+      await client.query('DELETE FROM usage_logs WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM user_music WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM user_points WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM token_rewards WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM streak_rewards WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM export_rewards WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM image_rewards WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM used_ai_rewards WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM user_packages WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM transaction_logs WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM refunds WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM reset_password WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM users_cc_tokens WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM tokens_promo WHERE used_by = $1', [userId]);
+
+      // Delete the user from the users table
+      const result = await client.query(
+          'DELETE FROM users WHERE id = $1 RETURNING *',
+          [userId]
+      );
+
+      await client.query('COMMIT');
+
+      if (result.rowCount === 0) {
+          return res.status(404).json({ error: 'User not found.' });
+      }
+
+      return res.json({ message: 'User and all associated logs deleted successfully.' });
+
+  } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error deleting user and logs:', error);
+      return res.status(500).json({ error: 'An error occurred while deleting the user.' });
+  } finally {
+      client.release();
+  }
+};
+
 
 module.exports = { 
   signUp,
   signIn,
-  signUpThirdParty
+  signUpThirdParty,
+  deleteUsageLogs,
+  deleteUserAndLogs
 };
