@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const path = require("path");
+const cors = require("cors"); // Import the CORS middleware
 const authRoutes = require("./routes/authRoutes");
 const pointRoutes = require("./routes/pointRoutes");
 const chatRoutes = require("./routes/modelsRoutes");
@@ -24,10 +25,11 @@ const authenticate = require("./middlewares/authenticate");
 
 const app = express();
 
+// Use CORS middleware to allow all origins
+app.use(cors());
+
 app.use('/images', express.static(path.join(__dirname, 'images')));
-
 app.use('/views', express.static(path.join(__dirname, 'views')));
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
