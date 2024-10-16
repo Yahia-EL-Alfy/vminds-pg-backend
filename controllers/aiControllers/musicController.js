@@ -2,7 +2,7 @@ const pool = require('../../config/database');
 const { generateMusic } = require('../../ai_models/musicModel');
 const { fetchMusicDetails } = require('../../ai_models/musicModel');
 const { generateCustomMusic } = require('../../ai_models/musicModel');
-const model = "suno";
+const model = "chirp-v3.5";
 const { updateAiToolUsage,updateTokenUsagePoints,updateLoginStreak } = require('../pointController');
 
 
