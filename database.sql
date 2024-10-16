@@ -295,11 +295,10 @@ CREATE TABLE chat_logs (
     bot_type VARCHAR(50) NOT NULL, 
     request TEXT NOT NULL,          
     response TEXT,                 
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    log_id INTEGER REFERENCES usage_logs(id)
 );
 
-ALTER TABLE chat_logs
-ADD COLUMN log_id INTEGER REFERENCES usage_logs(id);
 
 CREATE TABLE bookmarks (
     id SERIAL PRIMARY KEY,
