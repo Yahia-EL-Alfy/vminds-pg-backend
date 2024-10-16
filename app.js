@@ -25,8 +25,21 @@ const authenticate = require("./middlewares/authenticate");
 
 const app = express();
 
-// Use CORS middleware to allow all origins
-app.use(cors());
+const allowedOrigins = ['http://localhost:5173', 'https://vminds.vercel.app'];
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  allowedHeaders: 'Content-Type,Authorization',
+};
+
+app.use(cors(corsOptions));
 
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/views', express.static(path.join(__dirname, 'views')));
