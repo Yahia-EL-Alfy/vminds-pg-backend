@@ -295,7 +295,7 @@ CREATE TABLE chat_logs (
     bot_type VARCHAR(50) NOT NULL, 
     request TEXT NOT NULL,          
     response TEXT,                 
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     log_id INTEGER REFERENCES usage_logs(id)
 );
 

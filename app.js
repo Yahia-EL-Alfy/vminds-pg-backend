@@ -25,7 +25,7 @@ const authenticate = require("./middlewares/authenticate");
 
 const app = express();
 
-const allowedOrigins = ['http://localhost:5173', 'https://vminds.vercel.app'];
+const allowedOrigins = ['http://localhost:5173', 'https://vminds.vercel.app', 'https://app.vminds.ai', 'https://thankful-mushroom-00ce76d03.5.azurestaticapps.net'];
 const corsOptions = {
   origin: function (origin, callback) {
     if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
