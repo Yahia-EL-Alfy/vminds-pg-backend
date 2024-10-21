@@ -85,7 +85,9 @@ const getModelsByParentAndCategory = async (req, res) => {
   try {
     const { parent_id, category_id } = req.body;
 
+    // Check for missing input
     if (!parent_id || !category_id) {
+      console.error('Validation Error: Missing parent_id or category_id');
       return res.status(400).json({ error: "Parent ID and Category ID are required" });
     }
 
@@ -102,7 +104,9 @@ const getModelsByParentAndCategory = async (req, res) => {
     const result = await client.query(query, [parent_id, category_id]);
     client.release();
 
+    // Check if no models were found
     if (result.rows.length === 0) {
+      console.error(`No models found for parent_id: ${parent_id}, category_id: ${category_id}`);
       return res.status(404).json({ error: "No models found for this parent and category." });
     }
 
@@ -114,11 +118,29 @@ const getModelsByParentAndCategory = async (req, res) => {
       parent_name: row.parent_name
     }));
 
+    // Send the result
     res.status(200).json(models);
 
   } catch (error) {
-    console.error('Error fetching AI models by parent and category:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Log detailed error information
+    console.error('Error fetching AI models by parent and category:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      detail: error.detail,
+      table: error.table,
+      constraint: error.constraint,
+      hint: error.hint
+    });
+
+    // Send detailed error response
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      code: error.code || null,       // Optional, in case it's a DB error
+      hint: error.hint || null,       // Optional, additional details if available
+      stack: error.stack              // Optional, stack trace for debugging
+    });
   }
 };
 
