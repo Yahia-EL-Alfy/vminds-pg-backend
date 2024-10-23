@@ -1,83 +1,3 @@
-// const { getAIResponse } = require("../../ai_models/chatgpt");
-// const pool = require('../../config/database');
-// const { updateAiToolUsage, updateTokenUsagePoints, updateLoginStreak } = require('../pointController');
-
-// const handleChatRequest = async (req, res) => {
-//   const { message, model } = req.body;
-//   const userId = req.userId;
-
-//   if (!message) {
-//     return res.status(400).json({ error: "Message is required." });
-//   }
-
-//   try {
-//     const client = await pool.connect();
-
-//     // Fetch user data
-//     const userQuery = 'SELECT available_tokens, tokens_used, max_tokens FROM users WHERE id = $1';
-//     const userResult = await client.query(userQuery, [userId]);
-
-//     if (userResult.rows.length === 0) {
-//       client.release();
-//       return res.status(404).json({ error: "User not found." });
-//     }
-
-//     const user = userResult.rows[0];
-//     const maxTokens = user.max_tokens;
-
-//     // Check if the user has sufficient tokens
-//     if (user.available_tokens < maxTokens) {
-//       client.release();
-//       return res.status(403).json({ error: "Insufficient tokens." });
-//     }
-
-//     // Get AI response and tokens used
-//     const { responseText, tokensUsed } = await getAIResponse(message, model, maxTokens);
-
-//     // Update user's token usage
-//     const updateTokensQuery = `
-//         UPDATE users
-//         SET tokens_used = tokens_used + $1, available_tokens = available_tokens - $1
-//         WHERE id = $2
-//     `;
-//     await client.query(updateTokensQuery, [tokensUsed, userId]);
-
-//     // Log the usage
-//     const logQuery = `
-//         INSERT INTO usage_logs (user_id, bot_type, request, response, tokens_used)
-//         VALUES ($1, $2, $3, $4, $5)
-//         RETURNING id;
-//     `;
-//     const logResult = await client.query(logQuery, [userId, model, message, responseText, tokensUsed]);
-//     const logId = logResult.rows[0].id;
-
-//     // Update AI tool usage and get the reward response
-//     const usageUpdateResult = await updateAiToolUsage(userId, model);
-
-//     // Update token usage points
-//     const tokenUsageRes = await updateTokenUsagePoints(userId);
-//     await updateLoginStreak(userId);
-
-//     client.release();
-    
-
-//     // Combine the AI response, tool usage update, and token usage update into a single JSON response
-//     return res.status(200).json({
-//       response: responseText,
-//       usageUpdate: usageUpdateResult,
-//       tokenUsage: tokenUsageRes,
-//       logId
-//     });
-//   } catch (error) {
-//     console.error("Error in handleChatRequest:", error);
-//     return res.status(500).json({ error: "Failed to get AI response." });
-//   }
-// };
-
-// module.exports = {
-//   handleChatRequest,
-// };
-
 const { getAIResponse } = require("../../ai_models/chatgpt");
 const pool = require('../../config/database');
 const { updateAiToolUsage, updateTokenUsagePoints, updateLoginStreak } = require('../pointController');
@@ -107,22 +27,23 @@ const buildMessageHistory = async (memoryToken, newMessage, client) => {
 
 // Combined API for starting or continuing a chat
 const chatHandler = async (req, res) => {
-  const { message, model, memoryToken } = req.body;  // memoryToken instead of chatToken
+  const { message, model, memoryToken } = req.body;  
   const userId = req.userId;
 
   if (!message) {
     return res.status(400).json({ error: "Message is required." });
   }
 
+  const client = await pool.connect(); // Acquire a client from the pool
   try {
-    const client = await pool.connect();
+    await client.query('BEGIN'); // Start transaction
 
     // Fetch user data
     const userQuery = 'SELECT available_tokens, tokens_used, max_tokens FROM users WHERE id = $1';
     const userResult = await client.query(userQuery, [userId]);
 
     if (userResult.rows.length === 0) {
-      client.release();
+      await client.query('ROLLBACK'); // Rollback transaction on error
       return res.status(404).json({ error: "User not found." });
     }
 
@@ -130,7 +51,7 @@ const chatHandler = async (req, res) => {
     const maxTokens = user.max_tokens;
 
     if (user.available_tokens < maxTokens) {
-      client.release();
+      await client.query('ROLLBACK'); // Rollback transaction on error
       return res.status(403).json({ error: "Insufficient tokens." });
     }
 
@@ -185,11 +106,11 @@ const chatHandler = async (req, res) => {
     await client.query(updateTokensQuery, [tokensUsed, userId]);
 
     // Update AI tool usage and rewards
-    const usageUpdateResult = await updateAiToolUsage(userId, model);
-    const tokenUsageRes = await updateTokenUsagePoints(userId);
-    await updateLoginStreak(userId);
+    const usageUpdateResult = await updateAiToolUsage(client, userId, model);
+    const tokenUsageRes = await updateTokenUsagePoints(userId,client);
+    await updateLoginStreak(userId, client);
 
-    client.release();
+    await client.query('COMMIT'); // Commit transaction
 
     // Return the AI response, memoryToken, and both IDs
     return res.status(200).json({
@@ -203,7 +124,10 @@ const chatHandler = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in chatHandler:", error);
+    await client.query('ROLLBACK'); // Rollback transaction on error
     return res.status(500).json({ error: "Failed to process chat." });
+  } finally {
+    client.release(); // Release the client back to the pool
   }
 };
 

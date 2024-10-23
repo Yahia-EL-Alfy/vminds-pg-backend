@@ -1,6 +1,7 @@
 const pool = require('../config/database');
 
-const POINTS_REWARDS = [2, 4, 6, 8, 10, 12]; 
+const POINTS_REWARDS = [2, 4, 6, 8, 10, 12];
+const HOURS_IN_A_DAY = 24; // Constant for hours in a day
 
 const checkDailyLogin = async (req, res) => {
   const userId = req.userId;
@@ -9,257 +10,186 @@ const checkDailyLogin = async (req, res) => {
     return res.status(400).json({ error: 'User ID is required.' });
   }
 
+  const client = await pool.connect(); // Acquire the database client
   try {
-    const client = await pool.connect();
+    await client.query('BEGIN'); // Start the transaction
 
-    try {
-      await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT * FROM user_points WHERE user_id = $1',
+      [userId]
+    );
 
-      const { rows } = await client.query(
-        'SELECT * FROM user_points WHERE user_id = $1',
-        [userId]
+    const now = new Date();
+    let points = 0;
+    let streakDays = 1; // Default streak day
+
+    if (rows.length === 0) {
+      // First login
+      points = POINTS_REWARDS[0];
+      await client.query(
+        `INSERT INTO user_points (user_id, points, streak_days, last_prize_date, streak_start_date)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userId, points, streakDays, now, now]
       );
+    } else {
+      const userPoints = rows[0];
+      const lastPrizeDate = new Date(userPoints.last_prize_date);
 
-      if (rows.length === 0) {
-        const now = new Date();
-        const streakDays = 1;
-        const points = POINTS_REWARDS[streakDays - 1]; 
+      // Calculate time difference
+      const hoursDifference = (now - lastPrizeDate) / (1000 * 3600);
 
-        await client.query(
-          `INSERT INTO user_points (user_id, points, streak_days, last_prize_date, streak_start_date)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [userId, points, streakDays, now, now]
-        );
-
-        await client.query('COMMIT');
-
+      if (hoursDifference < HOURS_IN_A_DAY) {
         return res.status(200).json({
-          message: {
-            "points awarded": points,
-            "current streak": streakDays
-          }
+          message: 'No points awarded. Already logged in today.',
         });
-      } else {
-        const userPoints = rows[0];
-        const lastPrizeDate = new Date(userPoints.last_prize_date);
-        const currentDate = new Date();
-        const timeDifference = currentDate.getTime() - lastPrizeDate.getTime();
-        const hoursDifference = timeDifference / (1000 * 3600);
-
-        if (hoursDifference >= 24) {
-          let streakDays = userPoints.streak_days;
-
-          if (streakDays >= POINTS_REWARDS.length) {
-            streakDays = 0; 
-          }
-
-          streakDays += 1;
-
-          const points = POINTS_REWARDS[streakDays - 1]; 
-          const totalPoints = userPoints.points + points;
-
-          await client.query(
-            `UPDATE user_points
-             SET points = $1, streak_days = $2, last_prize_date = $3
-             WHERE user_id = $4`,
-            [totalPoints, streakDays, currentDate, userId]
-          );
-
-          await client.query('COMMIT');
-
-          return res.status(200).json({
-            message: {
-              "points awarded": points,
-              "current streak": streakDays
-            }
-          });
-        } else {
-          return res.status(200).json({
-            message: 'No points awarded. Already logged in today.',
-          });
-        }
       }
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Transaction error:', error);
-      res.status(500).json({ error: 'Server error' });
-    } finally {
-      client.release();
+
+      // Update streak and points
+      streakDays = Math.min(userPoints.streak_days + 1, POINTS_REWARDS.length);
+      points = POINTS_REWARDS[streakDays - 1]; // Points based on the new streak
+
+      await client.query(
+        `UPDATE user_points
+         SET points = points + $1, streak_days = $2, last_prize_date = $3
+         WHERE user_id = $4`,
+        [points, streakDays, now, userId]
+      );
     }
+
+    await client.query('COMMIT'); // Commit the transaction
+
+    return res.status(200).json({
+      message: {
+        "points awarded": points,
+        "current streak": streakDays
+      }
+    });
   } catch (error) {
-    console.error('Database connection error:', error);
-    res.status(500).json({ error: 'Server error' });
+    await client.query('ROLLBACK'); // Rollback on error
+    console.error('Transaction error:', error);
+    return res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release(); // Ensure client is released
   }
 };
 
-const getUserPoints = async (req, res) => {
-    const { userId } = req.params;
-  
-    try {
-      const client = await pool.connect();
-      try {
-        const result = await client.query(
-          'SELECT points FROM user_points WHERE user_id = $1',
-          [userId]
-        );
-  
-        if (result.rows.length === 0) {
-          return res.status(404).json({ error: 'User not found.' });
-        }
-  
-        const { points } = result.rows[0];
-        res.status(200).json({ points });
-      } finally {
-        client.release();
-      }
-    } catch (error) {
-      console.error('Error retrieving user points:', error);
-      res.status(500).json({ error: 'Internal server error.' });
-    }
-};
-
-const getUserStreakInfo = async (req, res) => {
-    const { userId } = req.params;
-  
-    try {
-      const client = await pool.connect();
-      try {
-        const result = await client.query(
-          'SELECT streak_start_date, last_prize_date FROM user_points WHERE user_id = $1',
-          [userId]
-        );
-  
-        if (result.rows.length === 0) {
-          return res.status(404).json({ error: 'User not found.' });
-        }
-  
-        const { streak_start_date, last_prize_date } = result.rows[0];
-        res.status(200).json({ streak_start_date, last_prize_date });
-      } finally {
-        client.release();
-      }
-    } catch (error) {
-      console.error('Error retrieving user streak info:', error);
-      res.status(500).json({ error: 'Internal server error.' });
-    }
-};
-
-async function updateLoginStreak(userId) {
-  const client = await pool.connect();
+async function updateLoginStreak(userId, client) {
   try {
-      await client.query('BEGIN');
+    // Start a transaction
+    await client.query('BEGIN');
 
-      // Check if the user is available in the streak_rewards table
-      const streakQuery = `
-          SELECT * FROM streak_rewards WHERE user_id = $1 FOR UPDATE;
+    // Check if the user is available in the streak_rewards table
+    const streakQuery = `
+        SELECT * FROM streak_rewards WHERE user_id = $1 FOR UPDATE;
+    `;
+    let streakResult = await client.query(streakQuery, [userId]);
+
+    // If user not found, insert a new entry
+    if (streakResult.rows.length === 0) {
+      const insertStreakQuery = `
+          INSERT INTO streak_rewards (user_id) VALUES ($1) RETURNING *;
       `;
-      let streakResult = await client.query(streakQuery, [userId]);
+      streakResult = await client.query(insertStreakQuery, [userId]);
+    }
 
-      // If user not found, insert a new entry
-      if (streakResult.rows.length === 0) {
-          const insertStreakQuery = `
-              INSERT INTO streak_rewards (user_id) VALUES ($1) RETURNING *;
-          `;
-          streakResult = await client.query(insertStreakQuery, [userId]);
-      }
+    const streakData = streakResult.rows[0];
 
-      const streakData = streakResult.rows[0];
+    // Fetch user points and other related data from user_points table
+    const pointsQuery = `
+        SELECT consecutive_days, last_used FROM user_points WHERE user_id = $1 FOR UPDATE;
+    `;
+    const pointsResult = await client.query(pointsQuery, [userId]);
 
-      // Fetch user points and other related data from user_points table
-      const pointsQuery = `
-          SELECT consecutive_days, last_used FROM user_points WHERE user_id = $1 FOR UPDATE;
-      `;
-      const pointsResult = await client.query(pointsQuery, [userId]);
+    if (pointsResult.rows.length === 0) {
+      throw new Error('User not found in user_points table');
+    }
 
-      if (pointsResult.rows.length === 0) {
-          throw new Error('User not found in user_points table');
-      }
+    const { consecutive_days, last_used } = pointsResult.rows[0];
+    const now = new Date();
+    const lastUsed = new Date(last_used);
+    const diffInHours = Math.abs(now - lastUsed) / 36e5;
 
-      const { consecutive_days, last_used } = pointsResult.rows[0];
-      const now = new Date();
-      const lastUsed = new Date(last_used);
-      const diffInHours = Math.abs(now - lastUsed) / 36e5;
+    let updatedConsecutiveDays = consecutive_days;
+    let updateLastUsed = false;
 
-      let updatedConsecutiveDays = consecutive_days;
-      let updateLastUsed = false;
-
-      if (diffInHours >= 24) {
-          if (diffInHours < 48) {
-              // Update last_used and increment consecutive days
-              updatedConsecutiveDays += 1;
-              updateLastUsed = true;
-          } else {
-              // Reset consecutive days
-              updatedConsecutiveDays = 1;
-              updateLastUsed = true;
-          }
-      }
-
-      // Update the user's consecutive_days and last_used in user_points if needed
-      if (updateLastUsed) {
-          const updatePointsQuery = `
-              UPDATE user_points 
-              SET consecutive_days = $1, last_used = NOW()
-              WHERE user_id = $2;
-          `;
-          await client.query(updatePointsQuery, [updatedConsecutiveDays, userId]);
+    if (diffInHours >= 24) {
+      if (diffInHours < 48) {
+        // Update last_used and increment consecutive days
+        updatedConsecutiveDays += 1;
+        updateLastUsed = true;
       } else {
-          // Update only consecutive_days if last_used is not updated
-          const updatePointsQuery = `
-              UPDATE user_points 
-              SET consecutive_days = $1
-              WHERE user_id = $2;
-          `;
-          await client.query(updatePointsQuery, [updatedConsecutiveDays, userId]);
+        // Reset consecutive days
+        updatedConsecutiveDays = 1;
+        updateLastUsed = true;
       }
+    }
 
-      // Check if the user reached any reward thresholds
-      const rewardsQuery = `
-          SELECT points, badge_name 
-          FROM rewards 
-          WHERE category = 'streak' AND numbers = $1;
+    // Update the user's consecutive_days and last_used in user_points if needed
+    if (updateLastUsed) {
+      const updatePointsQuery = `
+          UPDATE user_points 
+          SET consecutive_days = $1, last_used = NOW()
+          WHERE user_id = $2;
       `;
-      const rewardsResult = await client.query(rewardsQuery, [updatedConsecutiveDays]);
+      await client.query(updatePointsQuery, [updatedConsecutiveDays, userId]);
+    } else {
+      // Update only consecutive_days if last_used is not updated
+      const updatePointsQuery = `
+          UPDATE user_points 
+          SET consecutive_days = $1
+          WHERE user_id = $2;
+      `;
+      await client.query(updatePointsQuery, [updatedConsecutiveDays, userId]);
+    }
 
-      if (rewardsResult.rows.length > 0) {
-          const { points, badge_name } = rewardsResult.rows[0];
-          const badgeColumn = badge_name.toLowerCase().replace(/\s+/g, '_');
+    // Check if the user reached any reward thresholds
+    const rewardsQuery = `
+        SELECT points, badge_name 
+        FROM rewards 
+        WHERE category = 'streak' AND numbers = $1;
+    `;
+    const rewardsResult = await client.query(rewardsQuery, [updatedConsecutiveDays]);
 
-          // Check if the reward has already been received
-          const rewardReceived = streakData[badgeColumn];
-          if (!rewardReceived) {
-              // Update user points in user_points table
-              const updateUserPointsQuery = `
-                  UPDATE user_points 
-                  SET points = points + $1
-                  WHERE user_id = $2;
-              `;
-              await client.query(updateUserPointsQuery, [points, userId]);
+    if (rewardsResult.rows.length > 0) {
+      const { points, badge_name } = rewardsResult.rows[0];
+      const badgeColumn = badge_name.toLowerCase().replace(/\s+/g, '_');
 
-              // Update the streak_rewards table to mark the badge as achieved
-              const updateStreakRewardsQuery = `
-                  UPDATE streak_rewards 
-                  SET ${badgeColumn} = TRUE 
-                  WHERE user_id = $1;
-              `;
-              await client.query(updateStreakRewardsQuery, [userId]);
-          }
+      // Check if the reward has already been received
+      const rewardReceived = streakData[badgeColumn];
+      if (!rewardReceived) {
+        // Update user points in user_points table
+        const updateUserPointsQuery = `
+            UPDATE user_points 
+            SET points = points + $1
+            WHERE user_id = $2;
+        `;
+        await client.query(updateUserPointsQuery, [points, userId]);
+
+        // Update the streak_rewards table to mark the badge as achieved
+        const updateStreakRewardsQuery = `
+            UPDATE streak_rewards 
+            SET ${badgeColumn} = TRUE 
+            WHERE user_id = $1;
+        `;
+        await client.query(updateStreakRewardsQuery, [userId]);
       }
+    }
 
-      await client.query('COMMIT');
-      console.log(`User ${userId}'s login streak updated successfully.`);
+    // Commit the transaction
+    await client.query('COMMIT');
+    console.log(`User ${userId}'s login streak updated successfully.`);
   } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Error updating login streak:', error.message);
-  } finally {
-      client.release();
+    // Rollback the transaction in case of an error
+    await client.query('ROLLBACK');
+    console.error('Error updating login streak:', error.message);
+    throw new Error('Error updating login streak.');
   }
 }
 
-const updateAiToolUsage = async (userId, modelName) => {
-  const client = await pool.connect();
 
+const updateAiToolUsage = async (client, userId, modelName) => {
   try {
+    // Start a transaction
     await client.query('BEGIN');
 
     // Fetch user's current AI tools usage and points
@@ -389,22 +319,18 @@ const updateAiToolUsage = async (userId, modelName) => {
     await client.query('ROLLBACK');
     console.error('Error updating AI tool usage:', error);
     throw new Error('Error updating AI tool usage.');
-  } finally {
-    client.release();
   }
 };
 
 
-const updateTokenUsagePoints = async (userId) => {
-  const client = await pool.connect();
 
+const updateTokenUsagePoints = async (userId, client) => {
   // Get the current month
   const currentMonth = new Date();
   currentMonth.setDate(1); // Set to the first day of the month to standardize
 
   try {
-    await client.query('BEGIN');
-
+    // Query user data
     const { rows: userRows } = await client.query(
       'SELECT tokens_used FROM users WHERE id = $1',
       [userId]
@@ -416,6 +342,7 @@ const updateTokenUsagePoints = async (userId) => {
 
     const tokensUsed = userRows[0].tokens_used;
 
+    // Query user points
     const { rows: pointsRows } = await client.query(
       'SELECT points FROM user_points WHERE user_id = $1',
       [userId]
@@ -427,7 +354,7 @@ const updateTokenUsagePoints = async (userId) => {
 
     let points = pointsRows[0].points;
 
-    // Check the token rewards table for this user and month
+    // Check token rewards for the user in the current month
     const { rows: rewardStatusRows } = await client.query(
       `SELECT *
        FROM token_rewards
@@ -462,12 +389,12 @@ const updateTokenUsagePoints = async (userId) => {
       ['token']
     );
 
-    // Prepare a response to track awarded points and badges
+    // Track awarded points and badges
     let totalPointsAwarded = 0;
     let badgesWithLogos = [];
     let popupFlag = false; // Initialize popup_flag to false
 
-    // Loop through reward categories and update points if criteria met and not already claimed
+    // Loop through reward categories and update points if criteria met
     for (const reward of rewardCategories) {
       if (tokensUsed >= reward.threshold && !rewardStatus[reward.column]) {
         points += reward.points;
@@ -480,7 +407,7 @@ const updateTokenUsagePoints = async (userId) => {
           [userId, currentMonth]
         );
 
-        // Compare the reward column with code_name in image_storage table
+        // Fetch badge logo from the image_storage table
         const { rows: badgeRows } = await client.query(
           'SELECT location, name FROM image_storage WHERE code_name = $1',
           [reward.column]
@@ -491,9 +418,9 @@ const updateTokenUsagePoints = async (userId) => {
           badgeLogoUrl = `${process.env.APP_URL}${badgeRows[0].location}`;
         }
 
-        // Use the 'name' column from image_storage as the badge name
+        // Add the badge with logo to the response
         badgesWithLogos.push({
-          badge: badgeRows[0]?.name || reward.column, // If badge name is available, use it; otherwise use the reward.column
+          badge: badgeRows[0]?.name || reward.column, // Use the badge name if available
           logo: badgeLogoUrl,
         });
 
@@ -512,8 +439,6 @@ const updateTokenUsagePoints = async (userId) => {
       [points, userId]
     );
 
-    await client.query('COMMIT');
-
     // Return the response including total points awarded, badge logos, and popup_flag
     return {
       pointsAwarded: totalPointsAwarded,
@@ -522,18 +447,12 @@ const updateTokenUsagePoints = async (userId) => {
     };
 
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Error updating token usage points:', error);
     throw new Error('Error updating token usage points.');
-  } finally {
-    client.release();
   }
 };
 
-
-const updateImageCountAndPoints = async (userId) => {
-  const client = await pool.connect();
-
+const updateImageCountAndPoints = async (userId, client) => {
   try {
     await client.query('BEGIN');
 
@@ -609,7 +528,6 @@ const updateImageCountAndPoints = async (userId) => {
         await client.query(updateBadgeQuery, [userId]);
 
         // Fetch the badge logo URL
-        console.log("haaaaaaaaaaaaaaa" + badgeColumn );
         const { rows: badgeLogoRows } = await client.query(
           'SELECT location FROM image_storage WHERE code_name = $1',
           [badgeColumn]
@@ -643,13 +561,8 @@ const updateImageCountAndPoints = async (userId) => {
     await client.query('ROLLBACK');
     console.error('Error updating image count and points:', error);
     throw new Error('Error updating image count and points.');
-  } finally {
-    client.release();
   }
 };
-
-
-
 
 const updateDocumentExportCount = async (req, res) => {
   const userId = req.userId;
@@ -677,9 +590,7 @@ const updateDocumentExportCount = async (req, res) => {
 
     // Update the number of exported documents for the user
     await client.query(
-      `UPDATE user_points
-       SET number_of_pdf_or_pptx = $1
-       WHERE user_id = $2`,
+      'UPDATE user_points SET number_of_pdf_or_pptx = $1 WHERE user_id = $2',
       [number_of_pdf_or_pptx, userId]
     );
 
@@ -691,70 +602,55 @@ const updateDocumentExportCount = async (req, res) => {
 
     let totalPointsAwarded = 0;
     let badgesWithLogos = [];
-    let popupFlag = false; // Initialize popup_flag to false
+    let popupFlag = false;
 
     if (rewardRows.length > 0) {
-      // Update the user's points
       const awardedPoints = rewardRows[0].points;
       points += awardedPoints;
       totalPointsAwarded += awardedPoints;
 
+      // Update user's points and check for badge award
       await client.query(
-        `UPDATE user_points
-         SET points = $1
-         WHERE user_id = $2`,
+        'UPDATE user_points SET points = $1 WHERE user_id = $2',
         [points, userId]
       );
 
-      // Check if the reward is already received
+      // Upsert export_rewards for user
+      const badgeColumn = rewardRows[0].badge_name.toLowerCase().replace(/\s+/g, '_');
       const { rows: badgeRows } = await client.query(
         'SELECT * FROM export_rewards WHERE user_id = $1 FOR UPDATE',
         [userId]
       );
 
-      let badgeData;
       if (badgeRows.length === 0) {
-        // If no entry exists, create a new one
-        const insertBadgeQuery = `
-          INSERT INTO export_rewards (user_id) VALUES ($1) RETURNING *;
-        `;
-        badgeData = await client.query(insertBadgeQuery, [userId]);
+        await client.query(
+          'INSERT INTO export_rewards (user_id, ${badgeColumn}) VALUES ($1, TRUE)',
+          [userId]
+        );
+        popupFlag = true;
       } else {
-        badgeData = badgeRows[0];
+        const badgeData = badgeRows[0];
+
+        if (!badgeData[badgeColumn]) {
+          await client.query(
+            'UPDATE export_rewards SET ${badgeColumn} = TRUE WHERE user_id = $1',
+            [userId]
+          );
+          popupFlag = true;
+        }
       }
 
-      const badgeColumn = rewardRows[0].badge_name.toLowerCase().replace(/\s+/g, '_');
+      // Fetch badge logo URL
+      const { rows: badgeLogoRows } = await client.query(
+        'SELECT location FROM image_storage WHERE name = $1',
+        [rewardRows[0].badge_name]
+      );
 
-      // Check if the badge is already received
-      if (!badgeData[badgeColumn]) {
-        // Update the export_rewards table to mark the badge as achieved
-        const updateBadgeQuery = `
-          UPDATE export_rewards 
-          SET ${badgeColumn} = TRUE 
-          WHERE user_id = $1;
-        `;
-        await client.query(updateBadgeQuery, [userId]);
-
-        // Fetch the badge logo URL
-        const { rows: badgeLogoRows } = await client.query(
-          'SELECT location FROM image_storage WHERE name = $1',
-          [rewardRows[0].badge_name]
-        );
-
-        let badgeLogoUrl = null;
-        if (badgeLogoRows.length > 0) {
-          badgeLogoUrl = `${process.env.APP_URL}${badgeLogoRows[0].location}`;
-        }
-
+      if (badgeLogoRows.length > 0) {
         badgesWithLogos.push({
           badge: rewardRows[0].badge_name,
-          logo: badgeLogoUrl,
+          logo: `${process.env.APP_URL}${badgeLogoRows[0].location}`,
         });
-
-        console.log(`Awarded ${awardedPoints} points to user ID: ${userId} and achieved badge: ${rewardRows[0].badge_name}`);
-
-        // Set popup_flag to true since a new badge is awarded
-        popupFlag = true;
       }
     }
 
@@ -763,8 +659,8 @@ const updateDocumentExportCount = async (req, res) => {
     // Send response with updated points, badge data, and popup flag
     res.status(200).json({
       pointsAwarded: totalPointsAwarded,
-      badgesAwarded: badgesWithLogos, // Return badge name and logo if awarded
-      popup_flag: popupFlag,           // Return popup_flag
+      badgesAwarded: badgesWithLogos,
+      popup_flag: popupFlag,
     });
 
   } catch (error) {
@@ -775,7 +671,6 @@ const updateDocumentExportCount = async (req, res) => {
     client.release();
   }
 };
-
 
 
 const getUserRanking = async (req, res) => {
@@ -789,33 +684,48 @@ const getUserRanking = async (req, res) => {
   try {
     await client.query('BEGIN');
 
+    // Get the user's points
     const { rows: userPointsRows } = await client.query(
       'SELECT points FROM user_points WHERE user_id = $1',
       [userId]
     );
+
     if (userPointsRows.length === 0) {
       return res.status(404).json({ error: 'User not found.' });
     }
+
     const userPoints = userPointsRows[0].points;
 
+    // Get all user points
     const { rows: allPointsRows } = await client.query(
       'SELECT points FROM user_points'
     );
 
+    // Get total number of users
+    const totalUsers = allPointsRows.length;
+
+    // Calculate user rank
     const allPoints = allPointsRows.map(row => row.points);
+    allPoints.sort((a, b) => b - a); // Sort in descending order
 
-    allPoints.sort((a, b) => b - a);
+    const userRank = allPoints.indexOf(userPoints) + 1; // Rank starts at 1
 
-    const userRank = allPoints.indexOf(userPoints) + 1;
-    const totalUsers = allPoints.length;
+    // Calculate the percentage
+    let percentage = (userRank / totalUsers) * 100;
 
-    const percentile = (userRank / totalUsers) * 100;
-
-    const roundedPercentile = Math.ceil(percentile);
+    // Adjust the percentage according to your rules
+    percentage = Math.round(percentage * 10) / 10; // Round to one decimal place
+    percentage = Math.floor(percentage); // Round down to the nearest integer if decimal
+    if (percentage === 0 && userRank > 0) {
+      percentage = 1; // Set to 1% if the user has a rank but is in the bottom percentage
+    }
 
     await client.query('COMMIT');
 
-    return res.json({percentage: roundedPercentile});
+    return res.json({
+      userRank,
+      percentage,
+    });
 
   } catch (error) {
     await client.query('ROLLBACK');
@@ -827,76 +737,84 @@ const getUserRanking = async (req, res) => {
 };
 
 
-
-
 const convertPointsToTokens = async (req, res) => {
   const userId = req.userId; // Extract userId from the request token
   const { pointsToConvert } = req.body; // User inputs how many points they want to convert
 
   // Check if pointsToConvert is provided and valid
   if (!pointsToConvert || pointsToConvert <= 0) {
-      return res.status(400).json({ error: "Please provide a valid number of points to convert." });
+    return res.status(400).json({ error: "Please provide a valid number of points to convert." });
   }
 
-  let client;
+  const client = await pool.connect();
   try {
-      client = await pool.connect();
+    await client.query('BEGIN'); // Start a transaction
 
-      // Fetch the user's current points from user_points table
-      const pointsQuery = `SELECT points FROM user_points WHERE user_id = $1;`;
-      const pointsResult = await client.query(pointsQuery, [userId]);
+    // Fetch the user's current points from user_points table
+    const pointsQuery = `SELECT points FROM user_points WHERE user_id = $1;`;
+    const pointsResult = await client.query(pointsQuery, [userId]);
 
-      if (pointsResult.rows.length === 0) {
-          return res.status(404).json({ error: "User points not found." });
-      }
+    if (pointsResult.rows.length === 0) {
+      await client.query('ROLLBACK'); // Rollback if user not found
+      return res.status(404).json({ error: "User points not found." });
+    }
 
-      const currentPoints = pointsResult.rows[0].points;
+    const currentPoints = pointsResult.rows[0].points;
 
-      // Check if user has enough points to convert
-      if (currentPoints < pointsToConvert) {
-          return res.status(400).json({ error: "Insufficient points." });
-      }
+    // Check if user has enough points to convert
+    if (currentPoints < pointsToConvert) {
+      await client.query('ROLLBACK'); // Rollback if insufficient points
+      return res.status(400).json({ error: "Insufficient points." });
+    }
 
-      // Calculate the tokens from points (divide by 15, truncate decimals, then multiply by 1000)
-      const tokensToAdd = Math.trunc(pointsToConvert / 15 * 1000);
+    // Calculate the tokens from points (divide by 15, truncate decimals, then multiply by 1000)
+    const tokensToAdd = Math.trunc(pointsToConvert / 15 * 1000);
 
-      // Deduct the points from user_points
-      const deductPointsQuery = `
-          UPDATE user_points 
-          SET points = points - $1
-          WHERE user_id = $2;
-      `;
-      await client.query(deductPointsQuery, [pointsToConvert, userId]);
+    // Deduct points and update available_tokens in users table within the same transaction
+    const deductPointsQuery = `
+      UPDATE user_points 
+      SET points = points - $1 
+      WHERE user_id = $2;
+    `;
+    const updateTokensQuery = `
+      UPDATE users 
+      SET available_tokens = available_tokens + $1 
+      WHERE id = $2;
+    `;
 
-      // Update available_tokens in users table
-      const updateTokensQuery = `
-          UPDATE users
-          SET available_tokens = available_tokens + $1
-          WHERE id = $2;
-      `;
-      await client.query(updateTokensQuery, [tokensToAdd, userId]);
+    await client.query(deductPointsQuery, [pointsToConvert, userId]);
+    await client.query(updateTokensQuery, [tokensToAdd, userId]);
 
-      res.status(200).json({
-          message: `${tokensToAdd} tokens added to user with ID ${userId}`,
-          tokensAdded: tokensToAdd,
-          pointsDeducted: pointsToConvert
-      });
+    // Fetch the updated available_tokens from the users table
+    const availableTokensQuery = `
+      SELECT available_tokens FROM users 
+      WHERE id = $1;
+    `;
+    const availableTokensResult = await client.query(availableTokensQuery, [userId]);
+    const availableTokens = availableTokensResult.rows[0].available_tokens;
+
+    await client.query('COMMIT'); // Commit the transaction
+
+    res.status(200).json({
+      message: `${(tokensToAdd / 1000).toFixed(1)} credits added`, // Update message format
+      tokensAdded: tokensToAdd,
+      pointsDeducted: pointsToConvert,
+      availableCredits: (availableTokens / 1000).toFixed(1), // Return available credits
+    });
   } catch (error) {
-      console.error("Error converting points to tokens:", error);
-      res.status(500).json({ error: "Internal server error." });
+    await client.query('ROLLBACK'); // Rollback if an error occurs
+    console.error("Error converting points to tokens:", error);
+    res.status(500).json({ error: "Internal server error." });
   } finally {
-      if (client) {
-          client.release(); // Ensure the client is released in case of an error
-      }
+    client.release(); // Ensure the client is released in all cases
   }
 };
 
 
 
+
 module.exports = { 
     checkDailyLogin,
-    getUserPoints,
-    getUserStreakInfo,
     updateLoginStreak,
     updateAiToolUsage,
     updateTokenUsagePoints,

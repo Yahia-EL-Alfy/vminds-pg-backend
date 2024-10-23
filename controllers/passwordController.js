@@ -3,8 +3,6 @@ const pool = require('../config/database');
 const crypto = require('crypto');
 const { sendResetPasswordEmail } = require('../utils/mailer');
 
-
-
 const resetPassword = async (req, res) => {
     const userId = req.userId; // Assuming userId is extracted from the request after authentication
     const { oldPassword, newPassword, confirmNewPassword } = req.body;
@@ -19,17 +17,16 @@ const resetPassword = async (req, res) => {
         return res.status(400).json({ error: "New password and confirmation do not match." });
     }
 
+    const client = await pool.connect();
     try {
-        const client = await pool.connect();
+        await client.query('BEGIN'); // Start transaction
 
         // Fetch the user's hashed password from the database
-        const userQuery = `
-            SELECT password_hash FROM users WHERE id = $1;
-        `;
+        const userQuery = `SELECT password_hash FROM users WHERE id = $1;`;
         const userResult = await client.query(userQuery, [userId]);
 
         if (userResult.rows.length === 0) {
-            client.release();
+            await client.query('ROLLBACK'); // Rollback in case of an error
             return res.status(404).json({ error: "User not found." });
         }
 
@@ -38,7 +35,7 @@ const resetPassword = async (req, res) => {
         // Compare old password with the hashed password
         const isMatch = await bcrypt.compare(oldPassword, hashedPassword);
         if (!isMatch) {
-            client.release();
+            await client.query('ROLLBACK'); // Rollback in case of an error
             return res.status(400).json({ error: "Old password is incorrect." });
         }
 
@@ -46,21 +43,20 @@ const resetPassword = async (req, res) => {
         const newHashedPassword = await bcrypt.hash(newPassword, 10);
 
         // Update the user's password in the database
-        const updateQuery = `
-            UPDATE users 
-            SET password_hash = $1 
-            WHERE id = $2;
-        `;
+        const updateQuery = `UPDATE users SET password_hash = $1 WHERE id = $2;`;
         await client.query(updateQuery, [newHashedPassword, userId]);
 
-        res.status(200).json({ message: "Password updated successfully." });
-        client.release();
+        await client.query('COMMIT'); // Commit transaction if everything is successful
+        return res.status(200).json({ message: "Password updated successfully." });
+
     } catch (error) {
+        await client.query('ROLLBACK'); // Rollback in case of an error
         console.error("Error resetting password:", error);
-        res.status(500).json({ error: "Internal server error." });
+        return res.status(500).json({ error: "Internal server error." });
+    } finally {
+        client.release(); // Always release the client
     }
 };
-
 
 const requestPasswordReset = async (req, res) => {
     const { email } = req.body;
@@ -69,15 +65,16 @@ const requestPasswordReset = async (req, res) => {
         return res.status(400).json({ error: "Email is required." });
     }
 
+    const client = await pool.connect();
     try {
-        const client = await pool.connect();
+        await client.query('BEGIN'); // Start transaction
 
         // Check if user exists
         const userQuery = `SELECT id FROM users WHERE email = $1;`;
         const userResult = await client.query(userQuery, [email]);
 
         if (userResult.rows.length === 0) {
-            client.release();
+            await client.query('ROLLBACK'); // Rollback in case of an error
             return res.status(404).json({ error: "User not found." });
         }
 
@@ -97,15 +94,17 @@ const requestPasswordReset = async (req, res) => {
         // Send password reset email
         await sendResetPasswordEmail(email, resetToken);
 
-        res.status(200).json({ message: "Password reset email sent." });
-        client.release();
+        await client.query('COMMIT'); // Commit transaction if everything is successful
+        return res.status(200).json({ message: "Password reset email sent." });
+
     } catch (error) {
+        await client.query('ROLLBACK'); // Rollback in case of an error
         console.error("Error requesting password reset:", error);
-        res.status(500).json({ error: "Internal server error." });
+        return res.status(500).json({ error: "Internal server error." });
+    } finally {
+        client.release(); // Always release the client
     }
 };
-
-module.exports = { requestPasswordReset };
 
 const confirmPasswordReset = async (req, res) => {
     const { resetToken, newPassword, confirmNewPassword } = req.body;
@@ -118,8 +117,9 @@ const confirmPasswordReset = async (req, res) => {
         return res.status(400).json({ error: "New password and confirmation do not match." });
     }
 
+    const client = await pool.connect();
     try {
-        const client = await pool.connect();
+        await client.query('BEGIN'); // Start transaction
 
         // Check if the reset token is valid and not expired
         const tokenQuery = `
@@ -130,14 +130,14 @@ const confirmPasswordReset = async (req, res) => {
         const tokenResult = await client.query(tokenQuery, [resetToken]);
 
         if (tokenResult.rows.length === 0) {
-            client.release();
+            await client.query('ROLLBACK'); // Rollback in case of an error
             return res.status(400).json({ error: "Invalid or expired reset token." });
         }
 
         const { user_id, expires_at, used } = tokenResult.rows[0];
 
         if (used || new Date() > expires_at) {
-            client.release();
+            await client.query('ROLLBACK'); // Rollback in case of an error
             return res.status(400).json({ error: "Token has expired or has already been used." });
         }
 
@@ -160,16 +160,20 @@ const confirmPasswordReset = async (req, res) => {
         `;
         await client.query(updateTokenQuery, [resetToken]);
 
-        res.status(200).json({ message: "Password updated successfully." });
-        client.release();
+        await client.query('COMMIT'); // Commit transaction if everything is successful
+        return res.status(200).json({ message: "Password updated successfully." });
+
     } catch (error) {
+        await client.query('ROLLBACK'); // Rollback in case of an error
         console.error("Error resetting password:", error);
-        res.status(500).json({ error: "Internal server error." });
+        return res.status(500).json({ error: "Internal server error." });
+    } finally {
+        client.release(); // Always release the client
     }
 };
+
 module.exports = { 
     resetPassword,
     requestPasswordReset,
     confirmPasswordReset
-
-  };
+};

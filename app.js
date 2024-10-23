@@ -16,10 +16,10 @@ const uiDataRoutes = require('./routes/uiDataRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const passwordRoutes = require('./routes/passwordRoutes');
 
-require("./utils/streakResetter");
-require("./utils/consecutiveResseter");
-require("./utils/resetTokensUsed");
-require("./utils/populartools");
+// require("./utils/streakResetter");
+// require("./utils/consecutiveResseter");
+// require("./utils/resetTokensUsed");
+// require("./utils/populartools");
 
 const authenticate = require("./middlewares/authenticate");
 

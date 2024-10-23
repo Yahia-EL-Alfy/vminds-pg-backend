@@ -20,7 +20,7 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
-  max: 20,
+  max: 50,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
@@ -61,20 +61,15 @@ pool.on('error', (error, client) => {
   });
 });
 
-// Optional: Log when connections are idle
-setInterval(() => {
-  pool.connect()
-    .then((client) => {
-      logger.info('Connection is idle.', {
-        timestamp: new Date().toISOString(),
-        clientId: client.processID,
-      });
-      client.release();
-    })
-    .catch(err => logger.error('Failed to acquire an idle connection.', {
-      timestamp: new Date().toISOString(),
-      error: err.message,
-    }));
-}, 30000); // Adjust interval as needed
+// Override the query method to log executed queries
+const originalQuery = pool.query.bind(pool);
+pool.query = (text, params) => {
+  logger.info('Executing query', {
+    timestamp: new Date().toISOString(),
+    query: text,
+    parameters: params,
+  });
+  return originalQuery(text, params);
+};
 
 module.exports = pool;
