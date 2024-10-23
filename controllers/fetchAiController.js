@@ -95,27 +95,32 @@ const getModelsByParentAndCategory = async (req, res) => {
 
     const { parent_id, category_id } = req.body;
 
+    // Validate the input
     if (!parent_id || !category_id) {
       console.error('Validation Error: Missing parent_id or category_id');
       return res.status(400).json({ error: "Parent ID and Category ID are required" });
     }
 
+    // Query to fetch the models, ordered by id in descending order
     const query = `
       SELECT m.id, m.model_name, m.model_string, c.name as category, m.context_length, p.parent_name
       FROM ai_models m
       JOIN categories c ON m.category_id = c.id
       JOIN ai_parents p ON m.parent_id = p.id
-      WHERE m.parent_id = $1 AND c.id = $2 AND m.available = TRUE;
+      WHERE m.parent_id = $1 AND c.id = $2 AND m.available = TRUE
+      ORDER BY m.id ASC;
     `;
 
     const result = await client.query(query, [parent_id, category_id]);
 
+    // Check if any models were found
     if (result.rows.length === 0) {
       console.error(`No models found for parent_id: ${parent_id}, category_id: ${category_id}`);
       await client.query('ROLLBACK');
       return res.status(404).json({ error: "No models found for this parent and category." });
     }
 
+    // Map the result to a cleaner format
     const models = result.rows.map(row => ({
       id: row.id,
       model_name: row.model_name,
@@ -125,14 +130,15 @@ const getModelsByParentAndCategory = async (req, res) => {
     }));
 
     await client.query('COMMIT');
-    res.status(200).json(models);
+    // Return the models in descending order
+    return res.status(200).json(models);
 
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error fetching AI models by parent and category:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   } finally {
-    client.release();
+    client.release(); // Ensure the client connection is released
   }
 };
 
