@@ -8,6 +8,7 @@ const bcrypt = require('bcrypt');
 const signUp = async (req, res) => {
   const { firstName, lastName, username, email, password } = req.body;
 
+  // Ensure all fields are provided
   if (!firstName || !lastName || !username || !email || !password) {
     return res.status(400).json({ error: 'All fields are required.' });
   }
@@ -15,11 +16,15 @@ const signUp = async (req, res) => {
   const client = await pool.connect();
 
   try {
+    // Convert username to lowercase
+    const lowerCaseUsername = username.toLowerCase();
+
+    // Check if email or username already exists
     const checkUserQuery = `
       SELECT * FROM users 
       WHERE email = $1 OR username = $2;
     `;
-    const checkUserResult = await client.query(checkUserQuery, [email, username]);
+    const checkUserResult = await client.query(checkUserQuery, [email, lowerCaseUsername]);
 
     if (checkUserResult.rows.length > 0) {
       return res.status(400).json({ error: 'Email or username already exists.' });
@@ -34,6 +39,7 @@ const signUp = async (req, res) => {
     let verificationCode;
     let expiresAt;
 
+    // Generate verification code and handle verification requests
     if (checkVerificationResult.rows.length > 0) {
       verificationCode = generateVerificationCode();
       expiresAt = new Date(Date.now() + 10 * 60 * 1000);
@@ -51,13 +57,14 @@ const signUp = async (req, res) => {
 
       const hashedPassword = await hashPassword(password);
 
+      // Insert into verification_requests with lowercase username
       const insertQuery = `
         INSERT INTO verification_requests (email, username, first_name, last_name, password_hash, verification_code, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7);
       `;
       await client.query(insertQuery, [
         email,
-        username,
+        lowerCaseUsername, // Store the username in lowercase
         firstName,
         lastName,
         hashedPassword,
@@ -66,7 +73,8 @@ const signUp = async (req, res) => {
       ]);
     }
 
-    await sendVerificationEmail(email, verificationCode,firstName);
+    // Send verification email
+    await sendVerificationEmail(email, verificationCode, firstName);
 
     res.status(200).json({
       message: 'Verification email sent. Please check your inbox.',
@@ -82,6 +90,7 @@ const signUp = async (req, res) => {
 const signIn = async (req, res) => {
   const { emailOrUsername, password } = req.body;
 
+  // Ensure emailOrUsername and password are provided
   if (!emailOrUsername || !password) {
     return res.status(400).json({ error: 'Email/Username and password are required.' });
   }
@@ -89,12 +98,16 @@ const signIn = async (req, res) => {
   const client = await pool.connect();
 
   try {
+    // Convert emailOrUsername to lowercase for case-insensitive matching
+    const lowerCaseEmailOrUsername = emailOrUsername.toLowerCase();
+
+    // Query user by email or username
     let userQuery = `
       SELECT id, first_name, last_name, username, email, password_hash 
       FROM users 
       WHERE email = $1 OR username = $2;
     `;
-    const userResult = await client.query(userQuery, [emailOrUsername, emailOrUsername]);
+    const userResult = await client.query(userQuery, [lowerCaseEmailOrUsername, lowerCaseEmailOrUsername]);
 
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found.' });
@@ -122,6 +135,7 @@ const signIn = async (req, res) => {
     client.release();
   }
 };
+
 
 const signUpThirdParty = async (req, res) => {
   const { firstName, lastName, username, email, password } = req.body;
