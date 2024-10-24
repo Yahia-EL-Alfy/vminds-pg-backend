@@ -398,7 +398,9 @@ const getAlltools = async (req, res) => {
               c.name AS category_name,
               p.id AS parent_id,
               p.parent_name AS company_name,
+              m.id AS model_id,             -- Include model ID
               m.model_name,
+              m.model_string,               -- Include model string
               p.background_color,
               p.text_color,
               p.logo_url
@@ -417,7 +419,7 @@ const getAlltools = async (req, res) => {
       const { rows: companyModels } = await client.query(query);
       
       // Group models by category and company
-      const result = companyModels.reduce((acc, { category_id, category_name, parent_id, company_name, model_name, background_color, text_color, logo_url }) => {
+      const result = companyModels.reduce((acc, { category_id, category_name, parent_id, company_name, model_id, model_name, model_string, background_color, text_color, logo_url }) => {
           if (!acc[category_name]) {
               acc[category_name] = {
                   category_id, // Store category_id for each category
@@ -431,13 +433,21 @@ const getAlltools = async (req, res) => {
               acc[category_name].companies.push({
                   parent_id, // Include parent_id for the company
                   company_name,
-                  models: [model_name],
+                  models: [{
+                      model_id,      // Include model ID
+                      model_name,
+                      model_string   // Include model string
+                  }],
                   background_color,
                   text_color,
                   logo_url
               });
           } else {
-              acc[category_name].companies[companyIndex].models.push(model_name);
+              acc[category_name].companies[companyIndex].models.push({
+                  model_id,      // Include model ID
+                  model_name,
+                  model_string   // Include model string
+              });
           }
           return acc;
       }, {});
